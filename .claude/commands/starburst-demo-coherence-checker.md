@@ -124,8 +124,26 @@ Every `sampleQuery.query` in the YAML references only views defined in that same
 No direct references to raw tables.
 
 ### Check 7 — dataDomainName
-`metadata.dataDomainName` in the YAML must be in the allowed list:
-`Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`.
+
+If server params were resolved in Step 0, fetch the live domain list:
+```python
+import urllib.request, base64, json
+creds = base64.b64encode(f"{env['SB_USER']}:{env['SB_PASSWORD']}".encode()).decode()
+req = urllib.request.Request(
+    f"https://{env['SB_HOST']}/api/v1/dataProduct/domains",
+    headers={"Authorization": f"Basic {creds}"},
+)
+with urllib.request.urlopen(req, timeout=10) as resp:
+    data = json.loads(resp.read())
+items = data if isinstance(data, list) else data.get("domains", [])
+allowed_domains = [d["name"] for d in items if "name" in d]
+```
+
+If no cluster access → fall back to the static list:
+`Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`
+
+`metadata.dataDomainName` in the YAML must be in the allowed list (live or static).
+If mismatch → correct the YAML to the closest available domain, flag the change.
 
 ### Check 8 — catalogName
 `metadata.catalogName` must match the Data Product catalog on the target cluster.

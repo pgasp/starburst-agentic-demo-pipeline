@@ -75,10 +75,25 @@ Reason about the domain before writing anything. Apply these rules strictly.
 
 ### `data_domain_name`
 
-This value must exist on the target cluster. Use one of the known safe values:
-`Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`
+This value must exist on the target cluster.
 
-If the vertical does not map cleanly, default to `Operations` and flag it.
+- **If the orchestrator passed `available_domains`:** validate against that live list — use it
+  instead of the static defaults below.
+- **If invoked directly (no live list):** use the known safe values:
+  `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`
+
+If the vertical does not map cleanly to any available domain, default to `Operations` and flag it.
+
+### `owners`
+
+If the user did not specify owners, default to:
+```json
+[{"name": "Data & Analytics Team", "email": "data@demo.starburst.io"}]
+```
+If a real contact is mentioned in the business context (e.g. "this is for BNP's data team"), use:
+```json
+[{"name": "<team or contact name>", "email": "<email if known, else data@demo.starburst.io>"}]
+```
 
 ### `dp_name` convention
 
@@ -102,6 +117,9 @@ Output the full spec as a fenced `json` block. All fields are required.
   "client": "<client or event name>",
   "audience": "<IT|Business|C-level|Mixed>",
   "summary": "<one sentence — appears in Data Product UI, max 120 chars>",
+  "owners": [
+    {"name": "<owner name or team>", "email": "<owner email>"}
+  ],
   "description": {
     "overview": "<2-3 sentences on what this data product covers>",
     "business_context": "<where the data comes from, what system, what problem it solves>",
@@ -152,9 +170,10 @@ Output the full spec as a fenced `json` block. All fields are required.
 - [ ] Every FK column has a matching `fk_ref` pointing to an existing column in another table
 - [ ] Every FK type matches its parent column type exactly
 - [ ] Every AIDA question is answerable using only columns defined in `tables`
-- [ ] `data_domain_name` is one of the safe values listed above
+- [ ] `data_domain_name` is in the available domains list (live or static)
 - [ ] `dp_name` contains no client name and is kebab-case
 - [ ] Each fact table has ≥1 measure, ≥1 date, ≥1 anomaly flag
+- [ ] `owners` has at least one entry with a `name` and `email`
 
 ---
 

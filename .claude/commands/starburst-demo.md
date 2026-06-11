@@ -82,6 +82,31 @@ with engine.begin() as conn:
 
 Store the resolved `SB_CATALOG_DP` — it will be passed to Agent 3 in Step 3.
 
+Then fetch available data domains from the cluster and store as `AVAILABLE_DOMAINS`:
+
+```python
+import urllib.request, base64, json
+_STATIC_DOMAINS = ["Healthcare", "Finance", "Logistics", "HR", "Sales", "Operations", "Public Sector"]
+try:
+    url = f"https://{env['SB_HOST']}/api/v1/dataProduct/domains"
+    creds = base64.b64encode(f"{env['SB_USER']}:{env['SB_PASSWORD']}".encode()).decode()
+    req = urllib.request.Request(url, headers={"Authorization": f"Basic {creds}"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read())
+    # Response is a list of domain objects or {"domains": [...]} — extract name from either
+    items = data if isinstance(data, list) else data.get("domains", [])
+    available_domains = [d["name"] for d in items if "name" in d]
+    if not available_domains:
+        available_domains = _STATIC_DOMAINS
+except Exception:
+    available_domains = _STATIC_DOMAINS
+```
+
+- If the API succeeds, confirm: `Domains on cluster: <list>`
+- If it fails (network, auth, 404), fall back to the static list silently.
+
+`AVAILABLE_DOMAINS` will be passed to Agent 1 (validation) and Agent 3 (YAML generation).
+
 ---
 
 ## Step 1 — Collect business context
@@ -102,7 +127,7 @@ Otherwise, ask in a **single message**:
 
 Use the **Agent** tool to spawn a subagent with these instructions:
 
-> "You are Agent 1 of the Starburst demo pipeline. Invoke the `starburst-demo-consultant` skill with these arguments: [full business context]. Produce and save the Schema Spec JSON to `dataproduct/<Client>/<Entity>/<dp-name>-spec.json`. Return the full file path and the JSON content of the spec."
+> "You are Agent 1 of the Starburst demo pipeline. Invoke the `starburst-demo-consultant` skill with these arguments: [full business context]. Available domains on the cluster: `<AVAILABLE_DOMAINS>` — use this list instead of the static defaults to validate `data_domain_name`. Produce and save the Schema Spec JSON to `dataproduct/<Client>/<Entity>/<dp-name>-spec.json`. Return the full file path and the JSON content of the spec."
 
 Wait for completion — the spec is required before continuing.
 
@@ -118,7 +143,7 @@ Spawn **two agents simultaneously** in the same message (two Agent calls in the 
 > "You are Agent 2 of the Starburst demo pipeline. Invoke the `starburst-demo-data-modeler` skill. The spec is located at: `<spec-path>`. Generate and save `<dp-name>-data.py` in the same folder. Return the file path and a summary of the generated tables."
 
 **Agent 3 — DP Builder:**
-> "You are Agent 3 of the Starburst demo pipeline. Invoke the `starburst-demo-dp-builder` skill. The spec is located at: `<spec-path>`. The catalogName is: `<SB_CATALOG_DP>`. Generate and save `<dp-name>-dp.yaml` in the same folder. Return the file path and a summary of the generated views."
+> "You are Agent 3 of the Starburst demo pipeline. Invoke the `starburst-demo-dp-builder` skill. The spec is located at: `<spec-path>`. The catalogName is: `<SB_CATALOG_DP>`. Available domains on the cluster: `<AVAILABLE_DOMAINS>` — use this list to validate `dataDomainName` instead of the static defaults. Generate and save `<dp-name>-dp.yaml` in the same folder. Return the file path and a summary of the generated views."
 
 Wait for both completions.
 
@@ -158,15 +183,50 @@ Coherence: <✅ OK | ⚠️ N corrections applied>
 
 Next steps:
   1. Load data    → python <dp-name>-data.py --host ... --catalog ... --schema ... --location ...
-  2. Clean up     → python <dp-name>-data.py --host ... --schema ... --teardown
-  3. Deploy DP    → POST /api/v1/dataProduct/products/import
-  4. Test AIDA with the questions from the spec
+  2. Deploy DP    → POST /api/v1/dataProduct/products/import
+  3. Test AIDA with the questions from the spec
+
+Full teardown (after the demo):
+  a. Delete Data Product:
+       GET  /api/v1/dataProduct/products           → find productId where metadata.name == "<dp-name>"
+       DELETE /api/v1/dataProduct/products/{id}   → removes the DP from the catalog
+  b. Drop raw schema:
+       python <dp-name>-data.py --host ... --user ... --password ... \
+         --catalog iceberg --schema <dp_name_slug>_raw --teardown
 ```
 
 Then ask:
 > "Do you want me to load the data onto a cluster now? (I will need the host, user and password)"
 
 If yes → collect the missing parameters and run `<dp-name>-data.py` with the correct args.
+
+If the user asks to **tear down** a previously deployed demo (DP + raw schema):
+
+1. Resolve server config (Step 0 pattern — already resolved if in the same session).
+2. Find and delete the Data Product:
+```python
+import urllib.request, base64, json, urllib.error
+creds = base64.b64encode(f"{env['SB_USER']}:{env['SB_PASSWORD']}".encode()).decode()
+headers = {"Authorization": f"Basic {creds}"}
+
+# Find product ID
+url = f"https://{env['SB_HOST']}/api/v1/dataProduct/products"
+with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as r:
+    items = json.loads(r.read())
+items = items if isinstance(items, list) else items.get("products", [])
+dp = next((p for p in items if p.get("metadata", {}).get("name") == dp_name), None)
+if dp:
+    product_id = dp["id"]
+    del_req = urllib.request.Request(
+        f"https://{env['SB_HOST']}/api/v1/dataProduct/products/{product_id}",
+        method="DELETE", headers=headers,
+    )
+    urllib.request.urlopen(del_req)
+    print(f"Data Product '{dp_name}' deleted.")
+else:
+    print(f"No deployed Data Product named '{dp_name}' found — skipping.")
+```
+3. Drop raw schema via the data script `--teardown` flag.
 
 ---
 

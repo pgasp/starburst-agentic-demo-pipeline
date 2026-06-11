@@ -99,6 +99,8 @@ Extract from the JSON:
 - `sample_queries[]` — each with `name`, `description`, `tables_used`
 
 Derive:
+- `owners` — from `spec.owners` (list of `{name, email}`). If absent, default to
+  `[{name: "Data & Analytics Team", email: "data@demo.starburst.io"}]`
 - `schemaName` = `dp_name` with hyphens replaced by underscores
   - Example: `pmsi-hospital-activity` → `pmsi_hospital_activity`
 - `raw_schema` = `schemaName + "_raw"`
@@ -177,8 +179,9 @@ metadata:
     - <aida_q4>
     - <aida_q5>
 owners:
-  - name: "Data & Analytics Team"
-    email: "data@demo.starburst.io"
+  - name: "<spec.owners[0].name>"
+    email: "<spec.owners[0].email>"
+  # add one entry per owner if spec.owners has multiple entries
 tags:
   - "<tag1>"
   - "<tag2>"
@@ -236,12 +239,14 @@ Count characters explicitly before finalizing any name field.
 On warpspeed2: `data_products` (plural). In general: verify the Data Product catalog name
 on the target cluster. Never hardcode, never invent.
 
-### dataDomainName — safe values only
+### dataDomainName — validate against live list
 
-Must be exactly one of: `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`,
-`Operations`, `Public Sector`
+- **If the orchestrator passed `available_domains`:** validate `spec.data_domain_name`
+  against that list — use it instead of the static defaults.
+- **If invoked directly:** validate against the known safe values:
+  `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`
 
-If `spec.data_domain_name` is not in this list, flag it and default to `Operations`.
+If `spec.data_domain_name` is not in the available list, flag it and default to `Operations`.
 
 ### Column types
 
