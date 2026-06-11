@@ -1,42 +1,46 @@
 ---
 name: starburst-demo-coherence-checker
 description: >
-  Agent 4 du pipeline demo Starburst. Lit spec.json + data.py + dp.yaml et valide
-  leur cohérence : colonnes DDL vs vues YAML, types, sample queries, dataDomainName.
-  Corrige automatiquement les écarts et produit un rapport.
-  Invoqué par /starburst-demo ou directement.
-  Triggers on: "vérifie la cohérence", "coherence check", "agent 4 demo",
-  "valide les artifacts demo", "check les artifacts".
+  Agent 4 of the Starburst demo pipeline. Reads spec.json + data.py + dp.yaml and
+  validates their coherence: DDL columns vs YAML views, types, sample queries,
+  dataDomainName. Auto-corrects discrepancies and produces a report.
+  Invoked by /starburst-demo or directly.
+  Triggers on: "check coherence", "coherence check", "agent 4 demo",
+  "validate demo artifacts", "check the artifacts".
 ---
 
 # Agent 4 — Starburst Demo Coherence Checker
 
-Tu es l'Agent 4 du pipeline demo Starburst. Tu lis les trois artifacts produits par les agents précédents et tu valides leur cohérence. Tu corriges automatiquement les écarts détectés.
+You are Agent 4 of the Starburst demo pipeline. You read the three artifacts produced
+by the previous agents and validate their coherence. You automatically correct any
+discrepancies found.
 
 ---
 
-## Step 1 — Localiser les artifacts
+## Step 1 — Locate the artifacts
 
-Chercher dans `dataproduct/<Client>/<Entity>/`. Si plusieurs dossiers client existent, demander lequel cibler.
+Search in `dataproduct/<Client>/<Entity>/`. If multiple client folders exist, ask which
+one to target.
 
-Les trois fichiers partagent le même préfixe `<dp-name>` :
+All three files share the same `<dp-name>` prefix:
 - `<dp-name>-spec.json`
 - `<dp-name>-data.py`
 - `<dp-name>-dp.yaml`
 
-Si `data.py` ou `dp.yaml` est absent → bloquer et signaler. Si `spec.json` est absent → tenter les checks DDL↔YAML uniquement, signaler l'absence.
+If `data.py` or `dp.yaml` is missing → block and report. If `spec.json` is missing →
+attempt DDL↔YAML checks only and report the absence.
 
 ---
 
-## Step 2 — Extraire les schémas
+## Step 2 — Extract the schemas
 
-### Depuis `*-data.py` — DDL (source de vérité)
+### From `*-data.py` — DDL (source of truth)
 
-Parser le dict `DDL = { ... }`. Pour chaque table, extraire :
-- Nom de la table
-- Liste des colonnes avec leur type Trino (normaliser en MAJUSCULES)
+Parse the `DDL = { ... }` dict. For each table, extract:
+- Table name
+- Column list with Trino types (normalize to UPPERCASE)
 
-Pattern cible dans le fichier :
+Target pattern in the file:
 ```
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.<table> (
     <col> <TYPE>,
@@ -44,54 +48,58 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.<table> (
 ) WITH (format = 'PARQUET')
 ```
 
-### Depuis `*-dp.yaml` — vues
+### From `*-dp.yaml` — views
 
-Pour chaque entrée dans `views:` :
-- Nom de la vue
-- Colonnes dans `columns:` avec leur `type` (doit être en minuscules dans le YAML)
-- Colonnes sélectionnées dans `definitionQuery` (parser le SELECT)
-- Tables référencées dans FROM/JOIN du `definitionQuery`
+For each entry in `views:`:
+- View name
+- Columns in `columns:` with their `type` (must be lowercase in the YAML)
+- Columns selected in `definitionQuery` (parse the SELECT)
+- Tables referenced in FROM/JOIN of the `definitionQuery`
 
-### Depuis `*-spec.json` — contrat de référence
+### From `*-spec.json` — reference contract
 
-- Tables attendues avec colonnes et types (`trino_type`)
-- Relations FK (`relationships`)
+- Expected tables with columns and types (`trino_type`)
+- FK relationships (`relationships`)
 - `data_domain_name`
 - `aida_questions`
 
 ---
 
-## Step 3 — Exécuter les 10 checks
+## Step 3 — Run the 10 checks
 
-### Check 1 — Complétude DDL vs Spec
-Chaque table de `spec.tables` a une entrée DDL dans le script Python.
-Chaque colonne de la spec est présente dans le DDL de la table correspondante.
+### Check 1 — DDL completeness vs Spec
+Every table in `spec.tables` has a DDL entry in the Python script.
+Every column in the spec is present in the DDL of the corresponding table.
 
-### Check 2 — Cohérence des types DDL vs Spec
-Pour chaque colonne : `spec.trino_type` (normalisé majuscule) == type dans le DDL.
-Normalisation : `varchar`→`VARCHAR`, `integer`→`INTEGER`, `boolean`→`BOOLEAN`, etc.
+### Check 2 — Type consistency DDL vs Spec
+For each column: `spec.trino_type` (normalized to uppercase) == type in the DDL.
+Normalization: `varchar`→`VARCHAR`, `integer`→`INTEGER`, `boolean`→`BOOLEAN`, etc.
 
-### Check 3 — Colonnes des vues YAML vs DDL
-Pour chaque vue dans le YAML, chaque colonne listée dans `columns:` doit exister dans le DDL de la table raw correspondante (ou dans une des tables JOINées).
+### Check 3 — YAML view columns vs DDL
+For each view in the YAML, every column listed in `columns:` must exist in the DDL of
+the corresponding raw table (or in one of the JOINed tables).
 
-### Check 4 — Types dans les vues YAML vs DDL
-`view.columns[].type` (minuscule dans le YAML) doit correspondre au type DDL en ignorant la casse.
-Exemple : DDL `INTEGER` → YAML doit avoir `integer`.
+### Check 4 — Types in YAML views vs DDL
+`view.columns[].type` (lowercase in the YAML) must match the DDL type, ignoring case.
+Example: DDL `INTEGER` → YAML must have `integer`.
 
-### Check 5 — Colonnes SELECT dans definitionQuery vs DDL
-Parser le SELECT de chaque `definitionQuery`. Chaque colonne sélectionnée (sans alias) doit exister dans la table DDL correspondante. Si `SELECT *` détecté → warning, impossible à vérifier statiquement.
+### Check 5 — SELECT columns in definitionQuery vs DDL
+Parse the SELECT of each `definitionQuery`. Every selected column (without alias) must
+exist in the corresponding DDL table. If `SELECT *` is detected → warning, cannot be
+verified statically.
 
-### Check 6 — Sample queries vs vues existantes
-Chaque `sampleQuery.query` dans le YAML référence uniquement des vues définies dans ce même YAML. Aucune référence directe à des tables raw.
+### Check 6 — Sample queries vs existing views
+Every `sampleQuery.query` in the YAML references only views defined in that same YAML.
+No direct references to raw tables.
 
 ### Check 7 — dataDomainName
-`metadata.dataDomainName` dans le YAML doit être dans la liste autorisée :
+`metadata.dataDomainName` in the YAML must be in the allowed list:
 `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`, `Operations`, `Public Sector`.
 
 ### Check 8 — catalogName
-`metadata.catalogName` doit correspondre au catalog Data Product du cluster cible.
+`metadata.catalogName` must match the Data Product catalog on the target cluster.
 
-Si les paramètres de connexion (host, user, password) sont disponibles → vérifier via `SHOW CATALOGS` :
+If connection parameters (host, user, password) are available → verify via `SHOW CATALOGS`:
 ```python
 from sqlalchemy import create_engine, text
 engine = create_engine(f"trino://{user}:{password}@{host}:443/system",
@@ -100,85 +108,89 @@ with engine.begin() as conn:
     rows = conn.execute(text("SHOW CATALOGS")).fetchall()
     catalogs = [r[0] for r in rows if "data" in r[0].lower()]
 ```
-Comparer le résultat avec `metadata.catalogName` dans le YAML. Si écart → corriger le YAML.
+Compare the result with `metadata.catalogName` in the YAML. If there is a mismatch → correct the YAML.
 
-Si les paramètres de connexion ne sont pas disponibles → signaler : "⚠️ catalogName non vérifié — s'assurer que `<valeur>` existe sur le cluster avant de déployer."
+If connection parameters are not available → flag: "⚠️ catalogName not verified — ensure `<value>` exists on the cluster before deploying."
 
-### Check 9 — Relations FK dans les deux artifacts
-Chaque relation de `spec.relationships` (`table_a.col → table_b.col`) est :
-- Représentée dans le DDL (colonne FK présente dans `table_a`)
-- Représentée dans le YAML (une vue JOIN ou une vue qui expose les deux tables)
+### Check 9 — FK relationships in both artifacts
+Each relationship in `spec.relationships` (`table_a.col → table_b.col`) is:
+- Represented in the DDL (FK column present in `table_a`)
+- Represented in the YAML (a JOIN view or a view that exposes both tables)
 
-### Check 10 — Cohérence spec ↔ YAML : AIDA questions
-Les `spec.aida_questions` sont couvertes par les `sampleQueries` du YAML (correspondance sémantique, pas forcément textuelle). Chaque question doit avoir une query associée qui y répond.
+### Check 10 — Spec ↔ YAML coherence: AIDA questions
+The `spec.aida_questions` are covered by the `sampleQueries` in the YAML (semantic
+match, not necessarily textual). Each question must have a corresponding query that
+answers it.
 
 ---
 
-## Step 4 — Corriger automatiquement
+## Step 4 — Auto-correct
 
-**Règle absolue : le DDL du script Python est la source de vérité pour les types. Le YAML s'aligne sur le DDL, jamais l'inverse.**
+**Absolute rule: the DDL of the Python script is the source of truth for types. The YAML aligns to the DDL, never the reverse.**
 
-Appliquer directement dans le fichier concerné :
+Apply corrections directly to the affected file:
 
-| Écart | Correction |
+| Discrepancy | Correction |
 |---|---|
-| Colonne manquante dans DDL | Ajouter dans le DDL du script Python, avec type depuis la spec |
-| Type mismatch DDL vs YAML | Corriger le YAML pour s'aligner sur le DDL |
-| Colonne en trop dans `columns:` view YAML | Supprimer de `columns:` dans le YAML |
-| Sample query référence vue inexistante | Corriger le nom de vue dans la query |
-| `dataDomainName` incorrect | Corriger dans le YAML |
-| `catalogName` incorrect | Corriger dans le YAML |
+| Column missing from DDL | Add to the DDL in the Python script, with type from the spec |
+| Type mismatch DDL vs YAML | Correct the YAML to align with the DDL |
+| Extra column in `columns:` view YAML | Remove from `columns:` in the YAML |
+| Sample query references non-existent view | Fix the view name in the query |
+| `dataDomainName` incorrect | Correct in the YAML |
+| `catalogName` incorrect | Correct in the YAML |
 
-Si une correction risque de créer une régression (ex. : supprimer une colonne utilisée ailleurs dans le même YAML) → ne pas appliquer, signaler manuellement avec fichier + ligne.
+If a correction risks creating a regression (e.g. removing a column used elsewhere in
+the same YAML) → do not apply, report manually with file + line number.
 
 ---
 
-## Step 5 — Produire le rapport
+## Step 5 — Produce the report
 
-Format fixe à respecter :
+Fixed format to respect:
 
 ```
 ╔══════════════════════════════════════════════╗
 ║  Coherence Check — <dp-name>                 ║
 ╚══════════════════════════════════════════════╝
 
-Artifacts analysés :
-  spec   : <dp-name>-spec.json    (<N> tables, <N> colonnes)
-  script : <dp-name>-data.py      (<N> tables DDL)
-  yaml   : <dp-name>-dp.yaml      (<N> vues)
+Artifacts analyzed:
+  spec   : <dp-name>-spec.json    (<N> tables, <N> columns)
+  script : <dp-name>-data.py      (<N> DDL tables)
+  yaml   : <dp-name>-dp.yaml      (<N> views)
 
-Checks :
-  ✅ Check 1 — Complétude DDL vs Spec
-  ✅ Check 2 — Types DDL vs Spec
-  ⚠️  Check 3 — Colonnes vues YAML vs DDL
-     → sejour_hospitalier.readmission_30j : type 'boolean' vs DDL 'BOOLEAN' — corrigé
-  ✅ Check 4 — Types vues YAML vs DDL
-  ✅ Check 5 — SELECT definitionQuery vs DDL
-  ✅ Check 6 — Sample queries vs vues
-  ✅ Check 7 — dataDomainName : Healthcare ✓
-  ✅ Check 8 — catalogName : data_product ✓
-  ✅ Check 9 — Relations FK
-  ✅ Check 10 — AIDA questions couvertes
+Checks:
+  ✅ Check 1 — DDL completeness vs Spec
+  ✅ Check 2 — Type consistency DDL vs Spec
+  ⚠️  Check 3 — YAML view columns vs DDL
+     → hospital_stay.readmission_30d: type 'boolean' vs DDL 'BOOLEAN' — corrected
+  ✅ Check 4 — YAML view types vs DDL
+  ✅ Check 5 — SELECT columns in definitionQuery vs DDL
+  ✅ Check 6 — Sample queries vs views
+  ✅ Check 7 — dataDomainName: Healthcare ✓
+  ✅ Check 8 — catalogName: data_product ✓
+  ✅ Check 9 — FK relationships
+  ✅ Check 10 — AIDA questions covered
 
-Résultat : <N> issue(s) détectée(s), <N> corrigée(s) automatiquement.
+Result: <N> issue(s) detected, <N> auto-corrected.
 
-Artifacts prêts pour déploiement.
+Artifacts ready for deployment.
 ```
 
-Si 0 issue : `✅ Tous les checks passent — artifacts cohérents et prêts.`
+If 0 issues: `✅ All checks passed — artifacts are coherent and ready.`
 
-Si des corrections ne sont pas automatisables : les lister clairement avec le fichier et la ligne concernée, et indiquer l'action manuelle requise.
+If some corrections could not be automated: list them clearly with the file and line
+number, and indicate the manual action required.
 
 ---
 
 ## Edge cases
 
-| Situation | Comportement |
+| Situation | Behavior |
 |---|---|
-| `spec.json` manquant | Tenter checks DDL↔YAML uniquement, signaler l'absence de spec |
-| `data.py` manquant | Bloquer — DDL est la source de vérité, impossible de continuer |
-| `dp.yaml` manquant | Bloquer — rien à checker |
-| Correction crée une régression | Ne pas appliquer, signaler manuellement avec fichier + ligne |
-| `SELECT *` dans `definitionQuery` | Warning — impossible à vérifier statiquement sans exécution |
-| `DECIMAL(10,2)` vs `DECIMAL` | Considérer comme cohérent si la précision est compatible |
-| Plusieurs dossiers `dataproduct/` candidats | Demander lequel cibler avant de commencer |
+| `spec.json` missing | Attempt DDL↔YAML checks only, report the missing spec |
+| `data.py` missing | Block — DDL is the source of truth, cannot continue |
+| `dp.yaml` missing | Block — nothing to check |
+| Correction would cause a regression | Do not apply, report manually with file + line |
+| `SELECT *` in `definitionQuery` | Warning — cannot be verified statically without execution |
+| `DECIMAL(10,2)` vs `DECIMAL` | Consider coherent if precision is compatible |
+| Multiple `dataproduct/` candidate folders | Ask which one to target before starting |

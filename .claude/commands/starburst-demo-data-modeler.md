@@ -1,12 +1,12 @@
 ---
 name: starburst-demo-data-modeler
 description: >
-  Agent 2 du pipeline demo Starburst. Lit un Schema Spec JSON (<dp-name>-spec.json)
-  et génère le script Python standalone <dp-name>-data.py : DDL, données synthétiques
-  réalistes, upload parallèle via SQLAlchemy/trino, flag --teardown inclus.
-  Invoqué par /starburst-demo orchestrator ou directement.
-  Triggers on: "génère le script de données depuis la spec", "data modeler",
-  "agent 2 demo", "génère le script Python depuis la spec", "crée le data.py".
+  Agent 2 of the Starburst demo pipeline. Reads a Schema Spec JSON (<dp-name>-spec.json)
+  and generates the standalone Python script <dp-name>-data.py: DDL, realistic synthetic
+  data, parallel upload via SQLAlchemy/trino, --teardown flag included.
+  Invoked by /starburst-demo orchestrator or directly.
+  Triggers on: "generate the data script from the spec", "data modeler",
+  "agent 2 demo", "generate the Python script from the spec", "create the data.py".
 ---
 
 # Starburst Demo Data Modeler — Agent 2
@@ -29,8 +29,7 @@ Search for `<dp-name>-spec.json` in `dataproduct/<Client>/<Entity>/`.
 - If a spec JSON is pasted inline, use it directly.
 - If multiple spec files exist in the vault, list them and ask the user to pick one.
 - If no spec exists at all, stop and say:
-  > "Aucune spec trouvée. Lance d'abord `/starburst-demo-consultant` pour générer
-  > `<dp-name>-spec.json`."
+  > "No spec found. Run `/starburst-demo-consultant` first to generate `<dp-name>-spec.json`."
 
 Once located, read the full JSON before proceeding.
 
@@ -97,7 +96,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 log = logging.getLogger(__name__)
-fake = Faker("fr_FR")
+fake = Faker("en_US")
 
 random.seed(42)
 np.random.seed(42)
@@ -122,10 +121,10 @@ the domain knowledge section below). Example for a healthcare GHM ref table:
 
 ```python
 REF_GHM = [
-    {"code_ghm": "05K02Z", "libelle_ghm": "Insuffisance coronarienne", "cmd": "05",
-     "severite": "2", "tarif_ghs": 4823.50, "duree_basse": 2, "duree_haute": 12},
-    {"code_ghm": "05M02Z", "libelle_ghm": "Troubles du rythme cardiaque", "cmd": "05",
-     "severite": "2", "tarif_ghs": 3241.10, "duree_basse": 1, "duree_haute": 8},
+    {"ghm_code": "05K02Z", "ghm_label": "Coronary insufficiency", "cmd": "05",
+     "severity": "2", "t2a_tariff": 4823.50, "min_stay": 2, "max_stay": 12},
+    {"ghm_code": "05M02Z", "ghm_label": "Cardiac rhythm disorders", "cmd": "05",
+     "severity": "2", "t2a_tariff": 3241.10, "min_stay": 1, "max_stay": 8},
     # ... realistic domain values, not generated
 ]
 ```
@@ -254,7 +253,7 @@ def generate_data():
 - FK values drawn exclusively from the parent table's ID list — never `fake.uuid4()`
   or random strings for FK columns
 - Anomaly flags: `random.random() < <rate>` where `<rate>` is extracted from the
-  spec's `anomalies` description (e.g. "readmission_30j à 5%" → `0.05`)
+  spec's `anomalies` description (e.g. "readmission_30d at 5%" → `0.05`)
 - Numeric measures: use `round(random.uniform(min, max), 2)` for DOUBLE/DECIMAL,
   `random.randint(min, max)` for INTEGER
 - All column names and their order in the dict must match the DDL exactly
@@ -407,7 +406,7 @@ dataproduct/<Client>/<Entity>/<dp-name>-data.py
 If a file already exists at that path, warn and ask before overwriting.
 
 Confirm with:
-> "✓ Script sauvegardé : `dataproduct/<path>/<dp-name>-data.py`"
+> "✓ Script saved: `dataproduct/<path>/<dp-name>-data.py`"
 
 ---
 
@@ -432,18 +431,18 @@ message** — never one by one:
 
 | Param | Default | Ask if missing |
 |---|---|---|
-| `--host` | — | "Hostname du cluster Starburst ?" |
-| `--user` | — | "Nom d'utilisateur Starburst ?" |
-| `--password` | — | "Mot de passe ? (ne sera pas affiché dans les logs)" |
+| `--host` | — | "Starburst cluster hostname?" |
+| `--user` | — | "Starburst username?" |
+| `--password` | — | "Password? (will not be echoed in logs)" |
 | `--catalog` | `iceberg` | Only ask if non-default needed |
 | `--schema` | `<dp_name_slug>_raw` | Confirm or adjust |
-| `--location` | — | "Chemin S3/GCS/ADLS pour le schema raw ? (ex: `s3://bucket/path/`)" |
+| `--location` | — | "S3/GCS/ADLS path for the raw schema? (e.g. `s3://bucket/path/`)" |
 
 **Never echo the password** in any output, log, or summary.
 
 Once all params are collected, run the script. On success:
-> "✓ Tables chargées dans `<catalog>.<schema>`.
-> Prochaine étape : déployer `<dp-name>-dp.yaml` sur le cluster via `/starburst-data-product`."
+> "✓ Tables loaded into `<catalog>.<schema>`.
+> Next step: deploy `<dp-name>-dp.yaml` on the cluster via `/starburst-data-product`."
 
 On failure: diagnose the error, fix the script, and re-run.
 
@@ -453,35 +452,35 @@ On failure: diagnose the error, fix the script, and re-run.
 
 Use these values when generating static `ref` table data. Never invent codes.
 
-### Santé / PMSI
+### Healthcare / PMSI
 GHM codes: `05K02Z`, `05M02Z`, `05K04Z`, `08C04Z`, `10M02Z`, `11K02Z`, `12M05Z`, `14Z08Z`
 CIM-10 principal diagnoses: `I21.0`, `I63.9`, `J18.9`, `S72.0`, `K35.8`, `E11.9`, `C50.9`, `F32.0`
-Pôles: `Cardiologie`, `Neurologie`, `Orthopédie`, `Oncologie`, `Urgences`, `Pédiatrie`, `Psychiatrie`
-T2A tariff range: 800–12 000 €. Anomalies: `readmission_30j` (5%), `duree_sejour > 60j` (1%)
-Modes d'entrée: `8` (domicile), `6` (mutation), `7` (transfert)
-Modes de sortie: `8` (domicile), `9` (décès), `6` (mutation), `7` (transfert)
+Departments: `Cardiology`, `Neurology`, `Orthopedics`, `Oncology`, `Emergency`, `Pediatrics`, `Psychiatry`
+T2A tariff range: 800–12,000 €. Anomalies: `readmission_30d` (5%), `length_of_stay > 60d` (1%)
+Admission modes: `8` (home), `6` (transfer in), `7` (referral)
+Discharge modes: `8` (home), `9` (death), `6` (transfer out), `7` (referral)
 
-### Finance — Banque Retail
-Transaction types: `VIREMENT`, `PRELEVEMENT`, `PAIEMENT_CB`, `RETRAIT_DAB`, `VIREMENT_INTERNATIONAL`
-Segments client: `PARTICULIER`, `PROFESSIONNEL`, `ENTREPRISE`, `PREMIUM`
-Canaux: `AGENCE`, `WEB`, `MOBILE`, `TELEPHONE`
-Anomalies: transactions nocturnes (3%), dépassement découvert (8%), montant > 50 000 € (1%)
+### Finance — Retail Banking
+Transaction types: `WIRE_TRANSFER`, `DIRECT_DEBIT`, `CARD_PAYMENT`, `ATM_WITHDRAWAL`, `INTERNATIONAL_TRANSFER`
+Customer segments: `INDIVIDUAL`, `PROFESSIONAL`, `CORPORATE`, `PREMIUM`
+Channels: `BRANCH`, `WEB`, `MOBILE`, `PHONE`
+Anomalies: night-time transactions (3%), overdraft exceeded (8%), amount > 50,000 € (1%)
 
-### Assurance
-Types sinistre: `INCENDIE`, `DÉGÂTS_DES_EAUX`, `VOL`, `ACCIDENT`, `CATASTROPHE_NATURELLE`
-Types contrat: `MRH`, `AUTO`, `VIE`, `SANTÉ`, `PRÉVOYANCE`
-Statuts: `OUVERT`, `EN_EXPERTISE`, `INDEMNISÉ`, `REFUSÉ`, `CLÔTURÉ`
-Anomalies: sinistres répétés même assuré (5%), délai expertise > 90j (3%)
+### Insurance
+Claim types: `FIRE`, `WATER_DAMAGE`, `THEFT`, `ACCIDENT`, `NATURAL_DISASTER`
+Contract types: `HOME`, `AUTO`, `LIFE`, `HEALTH`, `DISABILITY`
+Statuses: `OPEN`, `UNDER_REVIEW`, `SETTLED`, `REJECTED`, `CLOSED`
+Anomalies: repeated claims same insured (5%), expert delay > 90d (3%)
 
-### Logistique
-Types transport: `ROUTIER`, `FERROVIAIRE`, `MARITIME`, `AÉRIEN`, `MULTIMODAL`
-Statuts commande: `CRÉÉE`, `EN_COURS`, `EXPÉDIÉE`, `LIVRÉE`, `RETOURNÉE`, `PERDUE`
-Anomalies: livraison > délai contractuel (8%), retour sans motif (4%), perte colis (1%)
+### Logistics
+Transport types: `ROAD`, `RAIL`, `SEA`, `AIR`, `MULTIMODAL`
+Order statuses: `CREATED`, `IN_PROGRESS`, `SHIPPED`, `DELIVERED`, `RETURNED`, `LOST`
+Anomalies: delivery past SLA (8%), return without reason (4%), lost parcel (1%)
 
-### Secteur Public
-Types prestation: `ALLOCATION`, `INDEMNITÉ`, `SUBVENTION`, `AIDE_LOGEMENT`, `FORMATION`
-Statuts dossier: `DÉPOSÉ`, `EN_INSTRUCTION`, `VALIDÉ`, `REJETÉ`, `EN_RECOURS`
-Anomalies: doublon bénéficiaire (3%), montant > plafond légal (2%), délai > 90j (5%)
+### Public Sector
+Benefit types: `ALLOWANCE`, `COMPENSATION`, `GRANT`, `HOUSING_AID`, `TRAINING`
+Application statuses: `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `APPEALED`
+Anomalies: duplicate beneficiary (3%), amount > legal cap (2%), delay > 90d (5%)
 
 ---
 

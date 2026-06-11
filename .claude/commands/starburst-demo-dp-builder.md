@@ -1,12 +1,12 @@
 ---
 name: starburst-demo-dp-builder
 description: >
-  Agent 3 du pipeline demo Starburst. Lit un Schema Spec JSON (<dp-name>-spec.json)
-  et génère le Data Product YAML Starburst (<dp-name>-dp.yaml) : vues, column docs,
-  sample queries SQL, AIDA questions. Garantit la cohérence avec la spec.
-  Invoqué par /starburst-demo ou directement.
-  Triggers on: "génère le data product depuis la spec", "dp builder", "agent 3 demo",
-  "crée le YAML depuis la spec", "génère le YAML depuis la spec".
+  Agent 3 of the Starburst demo pipeline. Reads a Schema Spec JSON (<dp-name>-spec.json)
+  and generates the Starburst Data Product YAML (<dp-name>-dp.yaml): views, column docs,
+  sample SQL queries, AIDA questions. Guarantees coherence with the spec.
+  Invoked by /starburst-demo or directly.
+  Triggers on: "generate the data product from the spec", "dp builder", "agent 3 demo",
+  "create the YAML from the spec", "generate the YAML from the spec".
 ---
 
 # Starburst Demo DP Builder — Agent 3
@@ -27,8 +27,8 @@ If a `<dp-name>-spec.json` file path is provided in the arguments, read it direc
 If no path is provided, search for JSON spec files in `dataproduct/` and list them,
 then ask the user which one to use:
 
-> "Quel fichier spec dois-je utiliser pour générer le Data Product YAML ?
-> Voici les specs trouvées : `<list>`"
+> "Which spec file should I use to generate the Data Product YAML?
+> Here are the specs found: `<list>`"
 
 Once the spec file is identified, read it and extract all fields before proceeding.
 
@@ -41,7 +41,7 @@ Once the spec file is identified, read it and extract all fields before proceedi
 If invoked by the orchestrator, the `catalogName` is passed as an argument → use it directly.
 
 If invoked directly or `catalogName` is not provided:
-- Ask: "Quel est le nom du catalog Data Product sur ton cluster ? (ex: `data_product`, `data_products`)"
+- Ask: "What is the name of the Data Product catalog on your cluster? (e.g. `data_product`, `data_products`)"
 - Or, if host/user/password are available, run `SHOW CATALOGS` to find it automatically:
   ```python
   from sqlalchemy import create_engine, text
@@ -69,18 +69,18 @@ Extract from the JSON:
 
 Derive:
 - `schemaName` = `dp_name` with hyphens replaced by underscores
-  - Example: `pmsi-activite-hospitaliere` → `pmsi_activite_hospitaliere`
+  - Example: `pmsi-hospital-activity` → `pmsi_hospital_activity`
 - `raw_schema` = `schemaName + "_raw"`
-  - Example: `pmsi_activite_hospitaliere` → `pmsi_activite_hospitaliere_raw`
+  - Example: `pmsi_hospital_activity` → `pmsi_hospital_activity_raw`
 
 ### schemaName mapping examples
 
 | dp_name | schemaName | raw_schema |
 |---|---|---|
-| `pmsi-activite-hospitaliere` | `pmsi_activite_hospitaliere` | `pmsi_activite_hospitaliere_raw` |
-| `transactions-fraude-retail` | `transactions_fraude_retail` | `transactions_fraude_retail_raw` |
-| `pilotage-sinistres-assurance` | `pilotage_sinistres_assurance` | `pilotage_sinistres_assurance_raw` |
-| `suivi-livraisons-logistique` | `suivi_livraisons_logistique` | `suivi_livraisons_logistique_raw` |
+| `pmsi-hospital-activity` | `pmsi_hospital_activity` | `pmsi_hospital_activity_raw` |
+| `retail-fraud-transactions` | `retail_fraud_transactions` | `retail_fraud_transactions_raw` |
+| `insurance-claims-tracking` | `insurance_claims_tracking` | `insurance_claims_tracking_raw` |
+| `logistics-shipment-tracking` | `logistics_shipment_tracking` | `logistics_shipment_tracking_raw` |
 
 ---
 
@@ -100,7 +100,7 @@ and `table_b` is a dim/ref table, create a joined view:
 - SELECT all columns from `table_a` (prefixed `a.`) + all columns from `table_b`
   (prefixed `b.`), in that order
 - Name the view descriptively after the business concept, not the raw table name
-  (e.g., `valorisation_t2a`, `transactions_enrichies`, `expeditions_detail`)
+  (e.g., `t2a_valuation`, `enriched_transactions`, `shipment_details`)
 
 **3c — View naming**
 All view names must be:
@@ -146,8 +146,8 @@ metadata:
     - <aida_q4>
     - <aida_q5>
 owners:
-  - name: "Direction des Systèmes d'Information"
-    email: "dsi@demo.starburst.io"
+  - name: "Data & Analytics Team"
+    email: "data@demo.starburst.io"
 tags:
   - "<tag1>"
   - "<tag2>"
@@ -177,12 +177,12 @@ exportMetadata: {}
 ### YAML formatting rules — critical
 
 - **No blank lines between fields** at the same YAML level — SnakeYAML fails with BLANK_LINE error
-  - Exception : à l'intérieur d'un bloc `|` (literal scalar), les lignes vides sont autorisées
+  - Exception: inside a `|` block (literal scalar), blank lines are allowed
 - **No inline YAML comments** (`#` after a value) — embed notes in description strings
-- **`metadata.description` MUST use `|`** (literal block scalar) — préserve les sauts de ligne et le markdown
-  - Utiliser des headers `##` pour chaque section
-  - Listes à puces `-` pour les use cases et les AIDA questions
-  - Les lignes vides entre sections sont autorisées à l'intérieur du bloc `|`
+- **`metadata.description` MUST use `|`** (literal block scalar) — preserves line breaks and markdown
+  - Use `##` headers for each section
+  - Bullet points `-` for use cases and AIDA questions
+  - Blank lines between sections are allowed inside the `|` block
 - **All other `description:` fields** (views, columns, sampleQueries) use plain quoted strings on one line
 - **`catalogName` must match the catalog verified in Step 2** — never invent, never hardcode
 
@@ -197,7 +197,8 @@ Count characters explicitly before finalizing any name field.
 
 ### catalogName rule
 
-On warpspeed2 : `data_products` (pluriel). En général : vérifier le nom du catalog Data Product sur le cluster cible. Ne jamais inventer.
+On warpspeed2: `data_products` (plural). In general: verify the Data Product catalog name
+on the target cluster. Never hardcode, never invent.
 
 ### dataDomainName — safe values only
 
@@ -270,7 +271,7 @@ Column order must match the spec (fact table columns first, then dim columns for
 
 ### metadata.description — markdown structure
 
-Utiliser `|` (literal block scalar) avec des sections markdown :
+Use `|` (literal block scalar) with markdown sections:
 
 ```yaml
   description: |
@@ -293,10 +294,10 @@ Utiliser `|` (literal block scalar) avec des sections markdown :
     - <aida_q5>
 ```
 
-- `|` préserve les newlines — le markdown est rendu dans l'UI Starburst
-- Les lignes vides entre sections sont autorisées (on est à l'intérieur du bloc `|`, pas entre des champs YAML)
-- Utiliser toutes les questions AIDA de `spec.aida_questions` (5–6 idéalement)
-- Business use cases depuis `spec.description.business_use_cases`, une puce par use case
+- `|` preserves newlines — markdown is rendered in the Starburst UI
+- Blank lines between sections are allowed (inside the `|` block, not between YAML fields)
+- Include all AIDA questions from `spec.aida_questions` (5–6 ideally)
+- Business use cases from `spec.description.business_use_cases`, one bullet per use case
 
 ---
 
@@ -307,14 +308,14 @@ Run this checklist mentally before writing the file:
 - [ ] Every column listed in each view's `columns:` block exists in `spec.tables`
 - [ ] Column types are all lowercase
 - [ ] Every `sampleQuery` references a view that exists in the `views:` block
-- [ ] `catalogName` correspond au catalog vérifié en Step 2 (jamais hardcodé, jamais inventé)
+- [ ] `catalogName` matches the catalog verified in Step 2 (never hardcoded, never invented)
 - [ ] `dataDomainName` is one of the seven safe values
 - [ ] No internal hostnames, IPs, or account IDs in the YAML
-- [ ] No blank lines between fields at any level
+- [ ] No blank lines between fields at any YAML level
 - [ ] No inline YAML comments
 - [ ] All `name:` fields are ≤ 40 characters
 - [ ] Tags are plain strings (not objects)
-- [ ] `metadata.description` uses `|` (literal block) avec sections markdown `## Overview`, `## Business context`, `## Business use cases`, `## Sample questions for AIDA`
+- [ ] `metadata.description` uses `|` (literal block) with markdown sections `## Overview`, `## Business context`, `## Business use cases`, `## Sample questions for AIDA`
 - [ ] JOIN views exclude duplicate FK columns
 - [ ] `definitionQuery` uses explicit column list (no `SELECT *`)
 - [ ] `FROM` clauses in views reference `iceberg.<raw_schema>.<table>` (not the data product schema)
@@ -337,14 +338,14 @@ Where:
 - `<dp-name>` is `spec.dp_name` exactly as written (kebab-case)
 
 If the client/entity path cannot be inferred from the spec file location, ask once:
-> "Où dois-je sauvegarder le YAML ? (ex: `dataproduct/Santexpo/PMSI/`)"
+> "Where should I save the YAML? (e.g. `dataproduct/Santexpo/PMSI/`)"
 
 If a file with the same name already exists, warn and ask for confirmation before
 overwriting.
 
 Confirm with:
-> "✓ Data Product YAML sauvegardé : `dataproduct/<path>/<dp-name>-dp.yaml`
-> Prochaine étape : Agent 4 (Coherence Checker) valide la cohérence avec le script de données."
+> "✓ Data Product YAML saved: `dataproduct/<path>/<dp-name>-dp.yaml`
+> Next step: Agent 4 (Coherence Checker) validates consistency with the data script."
 
 ---
 
@@ -352,13 +353,13 @@ Confirm with:
 
 | Domain | Fact table | Dim/ref table | Suggested denorm view name |
 |---|---|---|---|
-| Santé / PMSI | `sejour_hospitalier` | `ghm_valorisation` | `valorisation_t2a` |
-| Finance | `transaction` | `client` | `transactions_clients` |
-| Finance | `credit` | `client` | `credits_clients` |
-| Logistique | `expedition` | `transporteur` | `expeditions_detail` |
-| Logistique | `commande` | `entrepot` | `commandes_entrepot` |
-| Assurance | `sinistre` | `contrat` | `sinistres_contrats` |
-| Secteur Public | `dossier` | `beneficiaire` | `dossiers_beneficiaires` |
+| Healthcare / PMSI | `hospital_stay` | `ghm_valuation` | `t2a_valuation` |
+| Finance | `transaction` | `customer` | `enriched_transactions` |
+| Finance | `credit` | `customer` | `customer_credits` |
+| Logistics | `shipment` | `carrier` | `shipment_details` |
+| Logistics | `order` | `warehouse` | `order_warehouse` |
+| Insurance | `claim` | `contract` | `claim_contracts` |
+| Public Sector | `application` | `beneficiary` | `application_beneficiaries` |
 
 ---
 
