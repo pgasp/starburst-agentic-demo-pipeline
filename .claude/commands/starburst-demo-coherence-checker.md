@@ -17,6 +17,37 @@ discrepancies found.
 
 ---
 
+## Step 0 — Resolve server configuration (optional — for Check 8 only)
+
+Server access is only needed for Check 8 (live `catalogName` verification).
+Checks 1–7 and 9–10 are fully static and do not require a cluster connection.
+
+If invoked by the orchestrator, server params are already resolved — skip this step.
+
+If invoked directly and you want to run Check 8 against a live cluster:
+
+1. If a cluster name is provided → read `dataproduct/servers/.env.<cluster>`.
+2. If not, list `dataproduct/servers/.env.*` and ask which one to use.
+3. The user can paste params inline. If a password is pasted: accept it,
+   **do not echo it**, remind the user to rotate it.
+
+Parse with Python (never `source`):
+```python
+def load_env(path):
+    env = {}
+    for line in open(path):
+        line = line.strip()
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+```
+
+Expected keys: `SB_HOST`, `SB_PORT` (def. 443), `SB_USER`, `SB_PASSWORD`.
+If none are available, Check 8 runs in static mode (warn only).
+
+---
+
 ## Step 1 — Locate the artifacts
 
 Search in `dataproduct/<Client>/<Entity>/`. If multiple client folders exist, ask which
@@ -99,18 +130,21 @@ No direct references to raw tables.
 ### Check 8 — catalogName
 `metadata.catalogName` must match the Data Product catalog on the target cluster.
 
-If connection parameters (host, user, password) are available → verify via `SHOW CATALOGS`:
+If server params were resolved in Step 0 → verify via `SHOW CATALOGS`:
 ```python
 from sqlalchemy import create_engine, text
-engine = create_engine(f"trino://{user}:{password}@{host}:443/system",
-                       connect_args={"http_scheme": "https"})
+engine = create_engine(
+    f"trino://{env['SB_USER']}:{env['SB_PASSWORD']}@{env['SB_HOST']}:{env.get('SB_PORT','443')}/system",
+    connect_args={"http_scheme": "https"}
+)
 with engine.begin() as conn:
     rows = conn.execute(text("SHOW CATALOGS")).fetchall()
     catalogs = [r[0] for r in rows if "data" in r[0].lower()]
 ```
-Compare the result with `metadata.catalogName` in the YAML. If there is a mismatch → correct the YAML.
+Compare the result with `metadata.catalogName` in the YAML. If mismatch → correct the YAML.
 
-If connection parameters are not available → flag: "⚠️ catalogName not verified — ensure `<value>` exists on the cluster before deploying."
+If no server params available (static mode) → flag:
+"⚠️ catalogName not verified against live cluster — ensure `<value>` exists before deploying."
 
 ### Check 9 — FK relationships in both artifacts
 Each relationship in `spec.relationships` (`table_a.col → table_b.col`) is:

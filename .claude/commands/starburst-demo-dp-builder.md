@@ -34,34 +34,55 @@ Once the spec file is identified, read it and extract all fields before proceedi
 
 ---
 
-## Step 2 — Collect catalogName
+## Step 2 — Resolve server configuration and catalogName
 
 **`catalogName` must match the actual catalog on the target cluster — never hardcode,
 never guess. The YAML is invalid at deploy time if this value is wrong.**
 
-**If invoked by the orchestrator:** `catalogName` is passed as an explicit argument
-(the orchestrator discovers it via `SHOW CATALOGS` before spawning this agent) →
-use it directly, no questions asked.
+**If invoked by the orchestrator:** `catalogName` (`SB_CATALOG_DP`) is passed as an
+explicit argument — use it directly, no questions asked.
 
-**If invoked directly:**
-- If host/user/password are available, run `SHOW CATALOGS` to find it automatically:
-  ```python
-  from sqlalchemy import create_engine, text
-  engine = create_engine(f"trino://{user}:{password}@{host}:443/system",
-                         connect_args={"http_scheme": "https"})
-  with engine.begin() as conn:
-      rows = conn.execute(text("SHOW CATALOGS")).fetchall()
-      catalogs = [r[0] for r in rows if "data" in r[0].lower()]
-  ```
-  Use the result. If multiple matches, ask the user which one is the Data Product catalog.
-- If no cluster params are available, ask:
-  > "What is the name of the Data Product catalog on your cluster?
-  > (e.g. `data_product`, `data_products` — run `SHOW CATALOGS` if unsure)"
-- If the user cannot provide it, use the placeholder `__CATALOG_TO_VERIFY__` and
-  add a warning comment at the top of the generated YAML:
-  ```yaml
-  # ⚠️ catalogName not verified — replace __CATALOG_TO_VERIFY__ before deploying
-  ```
+**If invoked directly:** resolve server config first, then derive `catalogName`.
+
+1. If a cluster name is provided → read `dataproduct/servers/.env.<cluster>`.
+2. If not, list `dataproduct/servers/.env.*` and ask which one to use.
+3. The user can also paste params inline. If a password is pasted: accept it,
+   **do not echo it**, remind the user to rotate it.
+
+Parse with Python (never `source`):
+```python
+def load_env(path):
+    env = {}
+    for line in open(path):
+        line = line.strip()
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+```
+
+Expected keys: `SB_HOST`, `SB_PORT` (def. 443), `SB_USER`, `SB_PASSWORD`.
+`SB_CATALOG_DP` is used directly if present in the file. If absent, discover via
+`SHOW CATALOGS`:
+
+```python
+from sqlalchemy import create_engine, text
+engine = create_engine(
+    f"trino://{env['SB_USER']}:{env['SB_PASSWORD']}@{env['SB_HOST']}:{env.get('SB_PORT','443')}/system",
+    connect_args={"http_scheme": "https"}
+)
+with engine.begin() as conn:
+    rows = conn.execute(text("SHOW CATALOGS")).fetchall()
+    catalogs = [r[0] for r in rows if "data" in r[0].lower()]
+```
+
+- One match → use it. Multiple → ask the user which one. None → ask explicitly.
+
+If no cluster access is available at all, use the placeholder `__CATALOG_TO_VERIFY__`
+and add a warning at the top of the generated YAML:
+```yaml
+# ⚠️ catalogName not verified — replace __CATALOG_TO_VERIFY__ before deploying
+```
 
 ---
 

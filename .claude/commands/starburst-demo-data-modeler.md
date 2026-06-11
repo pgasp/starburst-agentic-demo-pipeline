@@ -21,6 +21,37 @@ source of truth — your job is to translate it faithfully into runnable code.
 
 ---
 
+## Step 0 — Resolve server configuration (optional at generation time)
+
+Server params are only needed to **run** the generated script, not to generate it.
+If invoked by the orchestrator, params are already resolved — skip this step.
+
+If invoked directly and the user wants to run the script immediately:
+
+1. If a cluster name is provided → read `dataproduct/servers/.env.<cluster>`.
+2. If not, list `dataproduct/servers/.env.*` and ask which one to use.
+3. The user can also paste params inline. If a password is pasted: accept it,
+   **do not echo it**, remind the user to rotate it.
+
+Parse with Python (never `source`):
+```python
+def load_env(path):
+    env = {}
+    for line in open(path):
+        line = line.strip()
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+```
+
+Expected keys: `SB_HOST`, `SB_PORT` (def. 443), `SB_USER`, `SB_PASSWORD`,
+`SB_CATALOG_RAW` (def. `iceberg`), `SB_LOCATION` (required for loading).
+
+Confirm: `Host=… User=… Port=… (password masked)`.
+
+---
+
 ## Step 1 — Locate the Schema Spec
 
 Search for `<dp-name>-spec.json` in `dataproduct/<Client>/<Entity>/`.
@@ -410,33 +441,33 @@ Confirm with:
 
 ---
 
-## Step 6 — Display run instructions + collect missing params
+## Step 6 — Display run instructions + run if params available
 
-After saving, display:
+After saving, display the run command:
 
 ```
 pip install pandas faker trino sqlalchemy numpy
 
 python dataproduct/<path>/<dp-name>-data.py \
-  --host <host> \
-  --user <user> \
+  --host <SB_HOST> \
+  --user <SB_USER> \
   --password *** \
-  --catalog iceberg \
+  --catalog <SB_CATALOG_RAW> \
   --schema <dp_name_slug>_raw \
-  --location s3://<bucket>/path/
+  --location <SB_LOCATION>
 ```
 
-Then check which connection parameters are missing and ask for them **in a single
-message** — never one by one:
+If server params were resolved in Step 0, fill in the values and run immediately.
+If any required param is still missing, ask for all of them in a **single message**:
 
-| Param | Default | Ask if missing |
-|---|---|---|
-| `--host` | — | "Starburst cluster hostname?" |
-| `--user` | — | "Starburst username?" |
-| `--password` | — | "Password? (will not be echoed in logs)" |
-| `--catalog` | `iceberg` | Only ask if non-default needed |
-| `--schema` | `<dp_name_slug>_raw` | Confirm or adjust |
-| `--location` | — | "S3/GCS/ADLS path for the raw schema? (e.g. `s3://bucket/path/`)" |
+| Param | Env key | Default | Ask if missing |
+|---|---|---|---|
+| `--host` | `SB_HOST` | — | "Starburst cluster hostname?" |
+| `--user` | `SB_USER` | — | "Starburst username?" |
+| `--password` | `SB_PASSWORD` | — | "Password? (will not be echoed)" |
+| `--catalog` | `SB_CATALOG_RAW` | `iceberg` | Only ask if non-default needed |
+| `--schema` | — | `<dp_name_slug>_raw` | Confirm or adjust |
+| `--location` | `SB_LOCATION` | — | "S3/GCS/ADLS path (e.g. `s3://bucket/path/`)" |
 
 **Never echo the password** in any output, log, or summary.
 

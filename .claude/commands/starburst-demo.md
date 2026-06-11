@@ -25,6 +25,65 @@ Agent 4 : starburst-demo-coherence-checker → report + corrections
 
 ---
 
+## Step 0 — Resolve server configuration
+
+**Server config is a required input — never hardcoded.**
+
+Resolve in this priority order:
+
+1. If a cluster name is passed as argument (e.g. `/starburst-demo warpspeed2 ...`) →
+   read `dataproduct/servers/.env.<cluster>`.
+2. If no cluster name, list `dataproduct/servers/.env.*` and ask which one to use.
+3. The user can also provide a direct `.env` file path, or paste params inline.
+   If a password is pasted in plain text: accept it, **do not echo it**, remind the user
+   to rotate it.
+
+**Parse the file with Python** (never `source` or `set -a` — values may contain special chars):
+
+```python
+def load_env(path):
+    env = {}
+    for line in open(path):
+        line = line.strip()
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+```
+
+Expected keys:
+
+| Key | Default | Required |
+|---|---|---|
+| `SB_HOST` | — | yes |
+| `SB_PORT` | `443` | no |
+| `SB_USER` | — | yes |
+| `SB_PASSWORD` | — | yes |
+| `SB_CATALOG_RAW` | `iceberg` | no |
+| `SB_CATALOG_DP` | — | discovered via `SHOW CATALOGS` if absent |
+| `SB_LOCATION` | — | required for data loading |
+
+Confirm to the user: `Host=… User=… Port=… (password masked)`.
+
+If `SB_CATALOG_DP` is not in the file, discover it via `SHOW CATALOGS`:
+```python
+from sqlalchemy import create_engine, text
+engine = create_engine(
+    f"trino://{env['SB_USER']}:{env['SB_PASSWORD']}@{env['SB_HOST']}:{env.get('SB_PORT','443')}/system",
+    connect_args={"http_scheme": "https"}
+)
+with engine.begin() as conn:
+    rows = conn.execute(text("SHOW CATALOGS")).fetchall()
+    catalogs = [r[0] for r in rows if "data" in r[0].lower()]
+```
+- One match → use it, confirm to user.
+- Multiple matches → ask which one is the Data Product catalog.
+- No match → ask the user to specify it.
+
+Store the resolved `SB_CATALOG_DP` — it will be passed to Agent 3 in Step 3.
+
+---
+
 ## Step 1 — Collect business context
 
 If arguments are provided, use them directly.
@@ -51,36 +110,6 @@ Display: `✅ Agent 1 — Spec produced: <path>`
 
 ---
 
-## Step 2b — Discover catalogName (before spawning Agent 3)
-
-**The catalogName must be known before Agent 3 runs** — otherwise the generated YAML
-contains a wrong value that silently breaks deployment.
-
-If cluster host/user/password are already available, run `SHOW CATALOGS` to find it:
-
-```python
-from sqlalchemy import create_engine, text
-engine = create_engine(
-    f"trino://{user}:{password}@{host}:443/system",
-    connect_args={"http_scheme": "https"}
-)
-with engine.begin() as conn:
-    rows = conn.execute(text("SHOW CATALOGS")).fetchall()
-    catalogs = [r[0] for r in rows if "data" in r[0].lower()]
-```
-
-- If **exactly one** match → use it automatically, display: `✅ catalogName: <value>`
-- If **multiple** → list them, ask which one is the Data Product catalog
-- If **none** → ask: "No 'data' catalog found. What is the exact name of your Data Product catalog?"
-
-If cluster params are not yet available, ask in a **single message**:
-> "What is the name of the Data Product catalog on your Starburst cluster?
-> (e.g. `data_product`, `data_products` — run `SHOW CATALOGS` on your cluster if unsure)"
-
-Store the confirmed value as `<catalogName>` — it will be passed to Agent 3 in Step 3.
-
----
-
 ## Step 3 — Agents 2 & 3 in parallel (foreground)
 
 Spawn **two agents simultaneously** in the same message (two Agent calls in the same response):
@@ -89,7 +118,7 @@ Spawn **two agents simultaneously** in the same message (two Agent calls in the 
 > "You are Agent 2 of the Starburst demo pipeline. Invoke the `starburst-demo-data-modeler` skill. The spec is located at: `<spec-path>`. Generate and save `<dp-name>-data.py` in the same folder. Return the file path and a summary of the generated tables."
 
 **Agent 3 — DP Builder:**
-> "You are Agent 3 of the Starburst demo pipeline. Invoke the `starburst-demo-dp-builder` skill. The spec is located at: `<spec-path>`. The catalogName is: `<catalogName>`. Generate and save `<dp-name>-dp.yaml` in the same folder. Return the file path and a summary of the generated views."
+> "You are Agent 3 of the Starburst demo pipeline. Invoke the `starburst-demo-dp-builder` skill. The spec is located at: `<spec-path>`. The catalogName is: `<SB_CATALOG_DP>`. Generate and save `<dp-name>-dp.yaml` in the same folder. Return the file path and a summary of the generated views."
 
 Wait for both completions.
 
@@ -145,7 +174,8 @@ If yes → collect the missing parameters and run `<dp-name>-data.py` with the c
 
 ### 6a — Collect cluster parameters
 
-Ask in a single message if missing: host, user, password, and target domain.
+All required params were resolved in Step 0. If any are still missing (e.g. `SB_LOCATION`
+for data loading, or target domain), ask for them in a single message.
 
 ### 6b — Confirm catalogName before deploying
 
