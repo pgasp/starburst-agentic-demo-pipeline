@@ -36,13 +36,15 @@ Once the spec file is identified, read it and extract all fields before proceedi
 
 ## Step 2 — Collect catalogName
 
-**`catalogName` must match the actual catalog on the target cluster — never hardcode.**
+**`catalogName` must match the actual catalog on the target cluster — never hardcode,
+never guess. The YAML is invalid at deploy time if this value is wrong.**
 
-If invoked by the orchestrator, the `catalogName` is passed as an argument → use it directly.
+**If invoked by the orchestrator:** `catalogName` is passed as an explicit argument
+(the orchestrator discovers it via `SHOW CATALOGS` before spawning this agent) →
+use it directly, no questions asked.
 
-If invoked directly or `catalogName` is not provided:
-- Ask: "What is the name of the Data Product catalog on your cluster? (e.g. `data_product`, `data_products`)"
-- Or, if host/user/password are available, run `SHOW CATALOGS` to find it automatically:
+**If invoked directly:**
+- If host/user/password are available, run `SHOW CATALOGS` to find it automatically:
   ```python
   from sqlalchemy import create_engine, text
   engine = create_engine(f"trino://{user}:{password}@{host}:443/system",
@@ -51,7 +53,15 @@ If invoked directly or `catalogName` is not provided:
       rows = conn.execute(text("SHOW CATALOGS")).fetchall()
       catalogs = [r[0] for r in rows if "data" in r[0].lower()]
   ```
-  Use the result to set `catalogName`. If multiple matches, ask the user which one.
+  Use the result. If multiple matches, ask the user which one is the Data Product catalog.
+- If no cluster params are available, ask:
+  > "What is the name of the Data Product catalog on your cluster?
+  > (e.g. `data_product`, `data_products` — run `SHOW CATALOGS` if unsure)"
+- If the user cannot provide it, use the placeholder `__CATALOG_TO_VERIFY__` and
+  add a warning comment at the top of the generated YAML:
+  ```yaml
+  # ⚠️ catalogName not verified — replace __CATALOG_TO_VERIFY__ before deploying
+  ```
 
 ---
 
@@ -176,15 +186,20 @@ exportMetadata: {}
 
 ### YAML formatting rules — critical
 
-- **No blank lines between fields** at the same YAML level — SnakeYAML fails with BLANK_LINE error
-  - Exception: inside a `|` block (literal scalar), blank lines are allowed
-- **No inline YAML comments** (`#` after a value) — embed notes in description strings
-- **`metadata.description` MUST use `|`** (literal block scalar) — preserves line breaks and markdown
-  - Use `##` headers for each section
-  - Bullet points `-` for use cases and AIDA questions
-  - Blank lines between sections are allowed inside the `|` block
-- **All other `description:` fields** (views, columns, sampleQueries) use plain quoted strings on one line
-- **`catalogName` must match the catalog verified in Step 2** — never invent, never hardcode
+- **No blank lines between YAML fields** at the same mapping level — SnakeYAML raises
+  a BLANK_LINE parse error when it sees an empty line between two sibling keys.
+- **No inline YAML comments** (`#` after a value) — embed notes in description strings.
+- **`metadata.description` MUST use `|`** (literal block scalar).
+  - `|` makes the entire value a single multi-line string. Blank lines *inside* the
+    block are part of the string content — they are **not** YAML field separators and
+    do **not** trigger the SnakeYAML BLANK_LINE error. This is standard YAML behavior.
+  - Use `##` markdown headers for each section. The Starburst UI renders markdown in
+    this field, so `|` produces a properly formatted description.
+  - Do **not** use `>-` (folded scalar) here — it collapses all line breaks into spaces,
+    destroying the markdown structure and making the description unreadable in the UI.
+- **All other `description:` fields** (views, columns, sampleQueries) use plain quoted
+  strings on a single line — no `|`, no `>-`.
+- **`catalogName` must match the catalog verified in Step 2** — never invent, never hardcode.
 
 ### name length — HARD LIMIT: 40 characters
 
