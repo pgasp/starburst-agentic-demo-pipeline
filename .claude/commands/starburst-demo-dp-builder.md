@@ -84,7 +84,7 @@ Derive:
 
 ---
 
-## Step 3 — Plan the views
+## Step 4 — Plan the views
 
 Before writing any YAML, reason through the view plan:
 
@@ -114,7 +114,7 @@ is identical to the join column already present from the left table.
 
 ---
 
-## Step 4 — Generate the YAML
+## Step 5 — Generate the YAML
 
 Follow this structure exactly. Every field is required. No placeholders.
 
@@ -198,8 +198,10 @@ On warpspeed2 : `data_products` (pluriel). En général : vérifier le nom du ca
 
 ### dataDomainName — safe values only
 
-Must be exactly one of: `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`,
+Must be exactly one of (standard clusters): `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`,
 `Operations`, `Public Sector`
+
+**Cluster-specific override — warpspeed2 :** `Hôpital Universitaire` pour le domaine santé (pas `Healthcare`). Vérifier les domaines réels du cluster cible avant déploiement via `GET /api/v1/dataProduct/domains`.
 
 If `spec.data_domain_name` is not in this list, flag it and default to `Operations`.
 
@@ -318,7 +320,7 @@ Utiliser `|-` (literal block scalar, strip trailing newline). Structure en 4 sec
 
 ---
 
-## Step 5 — Self-verification before saving
+## Step 6 — Self-verification before saving
 
 Run this checklist mentally before writing the file:
 
@@ -345,7 +347,7 @@ If any check fails, fix before saving.
 
 ---
 
-## Step 6 — Save the file
+## Step 7 — Save the file
 
 Save to:
 ```
