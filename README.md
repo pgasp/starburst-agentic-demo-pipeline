@@ -7,28 +7,38 @@ A multi-agent [Claude Code](https://claude.ai/code) pipeline that auto-generates
 ```
 User request (vertical, use case, audience)
      ↓
-Agent 1 — Demo Consultant       →  <dp-name>-spec.json     (Schema Spec)
+Step 1 — Agent 1: Demo Consultant   →  <dp-name>-spec.json     (Schema Spec + BIAC fields)
      ↓
-     ├── Agent 2 — Data Modeler  →  <dp-name>-data.py       (Python loader)  ┐ parallel
-     └── Agent 3 — DP Builder    →  <dp-name>-dp.yaml       (Data Product)   ┘
+     ├── Step 2: Agent 2 — Data Modeler  →  <dp-name>-data.py   (Python loader)  ┐ parallel
+     └── Step 3: Agent 3 — DP Builder    →  <dp-name>-dp.yaml   (Data Product)   ┘
      ↓
-Agent 4 — Coherence Checker     →  validation report + auto-corrections
+Step 4 — Agent 4: Coherence Checker →  validation report + auto-corrections
+     ↓
+Step 5 — Review (HITL)
+     ↓
+Step 6 — Cluster deployment (data load + Data Product import)
+     ↓
+Step 7 — BIAC auto-setup (3 roles: superuser / user / data_ing)
+     ↓
+Step 8 — (optional) Lineage HTML  →  <dp-name>-lineage.html
 ```
 
-The pipeline produces three deployment-ready artifacts in `dataproduct/<Client>/<Entity>/`:
-- **Spec JSON** — single contract shared by all agents
+The pipeline produces four deployment-ready artifacts in `dataproduct/<Client>/<Entity>/`:
+- **Spec JSON** — single contract shared by all agents, includes `rls_column` + `sensitive_columns`
 - **Python script** — DDL + synthetic data generation + parallel upload via SQLAlchemy/Trino
 - **Data Product YAML** — deployable directly to a Starburst cluster via the REST API
+- **Lineage HTML** — self-contained 2-panel diagram (data lineage + BIAC roles, no external dependencies)
 
 ## Skills
 
-| File | Agent | Role |
+| File | Agent / Tool | Role |
 |---|---|---|
-| `starburst-demo.md` | Orchestrator | Coordinates the 4-agent pipeline end-to-end |
-| `starburst-demo-consultant.md` | Agent 1 | Business context → Schema Spec JSON |
+| `starburst-demo.md` | Orchestrator | Coordinates the full 8-step pipeline end-to-end |
+| `starburst-demo-consultant.md` | Agent 1 | Business context → Schema Spec JSON (incl. BIAC fields) |
 | `starburst-demo-data-modeler.md` | Agent 2 | Spec → Python data loader (DDL + synthetic data) |
 | `starburst-demo-dp-builder.md` | Agent 3 | Spec → Starburst Data Product YAML |
 | `starburst-demo-coherence-checker.md` | Agent 4 | Cross-validates all 3 artifacts, auto-corrects |
+| `starburst-demo-lineage-gen.py` | Standalone script | Generates data lineage HTML (sources → views + BIAC roles) |
 
 ## Prerequisites
 
@@ -103,6 +113,35 @@ Reads the spec and generates a deployment-ready Starburst Data Product YAML:
 - Column docs from spec descriptions
 - AIDA questions embedded in `metadata.description`
 - YAML formatting rules enforced (no blank lines between fields, no inline comments, `|` for description blocks)
+
+### Step 7 — BIAC Auto-Setup
+
+Automatically runs after cluster deployment. Derives a 3-role BIAC structure from the spec:
+
+| Role | Assignee | Grants |
+|---|---|---|
+| `{prefix}_superuser` | `starburst_service` | SELECT on all views, no filter |
+| `{prefix}_user` | demo user | SELECT on all views + RLS on `rls_column` + CLS on `sensitive_columns` |
+| `{prefix}_data_ing` | demo user | Cross-DP SELECT + raw iceberg allEntities |
+
+The `prefix` is derived from the first 3 `_`-separated segments of `dp_name`. Generates and executes a Python BIAC script using the cluster credentials from `dataproduct/servers/.env.<cluster>`.
+
+### Step 8 — Lineage HTML (optional)
+
+Triggered by: `"génère le lineage pour {dp-name}"`
+
+Calls `starburst-demo-lineage-gen.py` — a standalone portable Python script that generates a self-contained HTML file with:
+- **Left panel:** data lineage diagram (raw Iceberg tables → Data Product views, SVG bézier arrows)
+- **Right panel:** 3 BIAC role cards with grants, RLS/CLS indicators, stats bar
+
+The script embeds the Starburst logo as a base64 data URI — no external files or network dependencies.
+
+```bash
+python .claude/commands/starburst-demo-lineage-gen.py \
+  --spec  dataproduct/<Client>/<Entity>/<dp-name>-spec.json \
+  --yaml  dataproduct/<Client>/<Entity>/<dp-name>-dp.yaml \
+  --output account/<Client>/<dp-name>-lineage.html
+```
 
 ### Agent 4 — Coherence Checker
 

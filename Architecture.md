@@ -28,17 +28,19 @@ The pipeline takes a business request as input and produces three files as outpu
 User: "Demo for a hospital — PMSI activity, T2A revenue, readmission rates"
                               ↓
               ┌───────────────────────────┐
-              │   Agent 1: Consultant     │
+              │  Step 1: Agent 1          │
+              │  Consultant               │
               │                           │
               │  Business need            │
               │       ↓                   │
               │  Schema Spec JSON         │
+              │  (+ rls_column, CLS)      │
               └───────────┬───────────────┘
                           │  Shared contract
                ┌──────────┴──────────┐
                ↓                     ↓   (parallel)
   ┌────────────────────┐  ┌──────────────────────┐
-  │  Agent 2           │  │  Agent 3              │
+  │  Step 2: Agent 2   │  │  Step 3: Agent 3      │
   │  Data Modeler      │  │  DP Builder           │
   │                    │  │                       │
   │  DDL + Python      │  │  Starburst Data       │
@@ -47,16 +49,49 @@ User: "Demo for a hospital — PMSI activity, T2A revenue, readmission rates"
              └──────────┬────────────┘
                         ↓
           ┌─────────────────────────────┐
-          │  Agent 4: Coherence Checker │
+          │  Step 4: Agent 4            │
+          │  Coherence Checker          │
           │                             │
           │  DDL ↔ YAML validation      │
           │  Auto-fix + report          │
+          └─────────────────────────────┘
+                        ↓
+          ┌─────────────────────────────┐
+          │  Step 5: HITL Review        │
+          └─────────────────────────────┘
+                        ↓
+          ┌─────────────────────────────────────────────────────┐
+          │  Step 6: Cluster Deploy (parallel phase)            │
+          │                                                     │
+          │  ┌─────────────────┐  ┌──────────────┐            │
+          │  │ 6b SHOW CATALOGS│  │ 6c GET domain│  ┐ parallel│
+          │  └────────┬────────┘  └──────┬───────┘  │         │
+          │           │                  │           │         │
+          │  ┌─────────────────────────────────┐    │         │
+          │  │  data.py  (iceberg raw load)     │ ───┘         │
+          │  └─────────────────────────────────┘              │
+          │           ↓ (after 6b + 6c)                       │
+          │  6d: POST dp.yaml import                           │
+          └─────────────────────────────────────────────────────┘
+                        ↓
+          ┌─────────────────────────────┐
+          │  Step 7: BIAC Auto-Setup    │
+          │  3 roles via REST API       │
+          │  (always, auto)             │
+          └─────────────────────────────┘
+                        ↓ (on user trigger)
+          ┌─────────────────────────────┐
+          │  Step 8: Lineage HTML       │
+          │  lineage-gen.py             │
+          │  (optional)                 │
           └─────────────────────────────┘
                         ↓
          dataproduct/<Client>/<Entity>/
          ├── *-spec.json
          ├── *-data.py
          └── *-dp.yaml
+         account/<Client>/
+         └── *-lineage.html
 ```
 
 ---
@@ -70,32 +105,29 @@ Multi-agent pipeline that transforms a business request into a complete Starburs
 │                    /starburst-demo (orchestrator)                   │
 │                    .claude/commands/starburst-demo.md               │
 │                                                                     │
-│  1. Collects business context (vertical, use case, client)         │
-│  2. Spawns agents in sequence                                      │
-│  3. Displays results + final summary                               │
-│  4. Offers cluster deployment                                      │
+│  Steps 1–8: business context → spec → data+yaml → coherence →      │
+│             HITL review → deploy → BIAC → (lineage)                │
 └──────────────┬──────────────────────────────────────────────────────┘
                │ foreground (blocking)
                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Agent 1 — starburst-demo-consultant                                │
-│  starburst-demo-consultant.md  (235 lines)                         │
+│  Step 1 — Agent 1: starburst-demo-consultant                        │
+│  starburst-demo-consultant.md                                       │
 │                                                                     │
 │  INPUT  : business context (vertical, use case, audience)          │
 │  OUTPUT : <dp-name>-spec.json                                      │
 │                                                                     │
 │  Role : Senior SE — translates a business request into a Schema    │
 │         Spec JSON (tables, columns, types, volumes, AIDA           │
-│         questions, RLS policies, seed data)                        │
+│         questions, rls_column, sensitive_columns)                  │
 └──────────────┬──────────────────────────────────────────────────────┘
                │ spec.json → two parallel agents
                ├─────────────────────────┐
                ▼                         ▼
 ┌──────────────────────────┐  ┌──────────────────────────────────────┐
-│  Agent 2                 │  │  Agent 3                             │
+│  Step 2 — Agent 2        │  │  Step 3 — Agent 3                    │
 │  starburst-demo-         │  │  starburst-demo-dp-builder           │
 │  data-modeler            │  │  starburst-demo-dp-builder.md        │
-│  (502 lines)             │  │  (378 lines)                         │
 │                          │  │                                      │
 │  INPUT  : spec.json      │  │  INPUT  : spec.json                  │
 │  OUTPUT : data.py        │  │  OUTPUT : dp.yaml                    │
@@ -109,8 +141,8 @@ Multi-agent pipeline that transforms a business request into a complete Starburs
                               │ data.py + dp.yaml
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Agent 4 — starburst-demo-coherence-checker                         │
-│  starburst-demo-coherence-checker.md  (184 lines)                  │
+│  Step 4 — Agent 4: starburst-demo-coherence-checker                 │
+│  starburst-demo-coherence-checker.md                                │
 │                                                                     │
 │  INPUT  : spec.json + data.py + dp.yaml                            │
 │  OUTPUT : report + in-place corrections                            │
@@ -122,16 +154,98 @@ Multi-agent pipeline that transforms a business request into a complete Starburs
                │ validated artifacts
                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Deployment (in /starburst-demo Step 6)                            │
+│  Step 5 — HITL Review                                              │
+│                                                                     │
+│  User reviews generated artifacts; can request corrections before  │
+│  moving to deployment. Pipeline waits for explicit confirmation.    │
+└──────────────┬──────────────────────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Step 6 — Cluster Deployment                                       │
 │                                                                     │
 │  python data.py --host --user --password --catalog --schema        │
 │  GET  /api/v1/dataProduct/domains   → check/create domain          │
 │  POST /api/v1/dataProduct/products/import  → deploy dp.yaml        │
+│                                                                     │
+│  Credentials from: dataproduct/servers/.env.<cluster>              │
+└──────────────┬──────────────────────────────────────────────────────┘
+               │ (auto, always runs after Step 6)
+               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Step 7 — BIAC Auto-Setup                                          │
+│                                                                     │
+│  INPUT  : spec.json (rls_column, sensitive_columns) + .env cluster │
+│  OUTPUT : 3 BIAC roles created via REST API                        │
+│                                                                     │
+│  {prefix}_superuser  → starburst_service, all views, no filter     │
+│  {prefix}_user       → demo user, RLS on rls_column, CLS masks     │
+│  {prefix}_data_ing   → demo user, cross-DP + raw iceberg           │
+│                                                                     │
+│  prefix = first 3 segments of dp_name (hyphens → underscores)     │
+└──────────────┬──────────────────────────────────────────────────────┘
+               │ (optional — triggered by user)
+               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Step 8 — Lineage HTML                                             │
+│                                                                     │
+│  Trigger: "génère le lineage pour {dp-name}"                       │
+│                                                                     │
+│  INPUT  : spec.json + dp.yaml                                      │
+│  OUTPUT : <dp-name>-lineage.html  (fully self-contained)           │
+│                                                                     │
+│  Script : starburst-demo-lineage-gen.py                            │
+│           - Left panel: raw tables → views (SVG bézier arrows)     │
+│           - Right panel: 3 BIAC role cards + stats                 │
+│           - Logo embedded as base64 — no external dependencies     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
+
+---
+
+## Steps 7–8: BIAC and Lineage
+
+### Step 7 — BIAC Auto-Setup
+
+Runs automatically after successful cluster deployment (Step 6). No user action required.
+
+Derives a 3-role permission structure from the spec:
+
+| Role | Assignee | Grants |
+|---|---|---|
+| `{prefix}_superuser` | `starburst_service` | SELECT on all views — no filter |
+| `{prefix}_user` | demo user | SELECT + RLS (`rls_column = current_user`) + CLS masks |
+| `{prefix}_data_ing` | demo user | Cross-DP SELECT + raw iceberg `allEntities` |
+
+**`rls_column`** — auto-detected by the consultant agent from patterns: `_owner`, `_responsable`, `_assignee`, `region`, `department`, `entity`, `desk_*`, `agence_*`. Set to `null` if no candidate.
+
+**`sensitive_columns`** — auto-detected column masks:
+- `amount` → `ROUND(col / 100000) * 100000` (financial ranges)
+- `id` → `CONCAT(SUBSTR(col, 1, 4), '****')` (identifier prefix masking)
+- `score` → `CAST(ROUND(CAST(col AS DOUBLE) / 10) * 10 AS INTEGER)` (risk score bucketing)
+
+The step generates and executes a Python BIAC script using the cluster REST API. Credentials are read from `dataproduct/servers/.env.<cluster>` — never passed on the command line.
+
+### Step 8 — Lineage HTML (optional)
+
+Trigger phrase: `"génère le lineage pour {dp-name}"`
+
+`starburst-demo-lineage-gen.py` is a **fully portable** standalone Python script — no workspace dependencies, no external files, no network requests. The Starburst logo is embedded as a base64 data URI constant.
+
+```
+starburst-demo-lineage-gen.py
+  --spec  <dp-name>-spec.json
+  --yaml  <dp-name>-dp.yaml
+  --output account/<Client>/<dp-name>-lineage.html
+```
+
+Outputs a single self-contained HTML file:
+- **Left panel:** raw Iceberg tables → Data Product views, connected by SVG bézier arrows (color-coded per view)
+- **Right panel:** 3 BIAC role cards (grants, RLS tag, CLS count) + stats bar + embedded logo
+
+View→table mapping uses a substring heuristic: a view is connected to tables that share a word segment >3 chars with the view name.
 
 ---
 
@@ -151,7 +265,8 @@ The key architectural decision is the **Schema Spec** — a structured JSON file
       "volume": 3000,
       "columns": [
         { "name": "code_ghm",        "trino_type": "VARCHAR", "description": "GHM code from ATIH grouping" },
-        { "name": "duree_sejour",    "trino_type": "INTEGER", "description": "Length of stay in days" },
+        { "name": "pole_responsable","trino_type": "VARCHAR", "description": "Medical pole owning the stay" },
+        { "name": "tarif_ghs",       "trino_type": "DECIMAL(10,2)", "description": "T2A tariff in euros" },
         { "name": "readmission_30j", "trino_type": "BOOLEAN", "description": "Unplanned 30-day readmission flag" }
       ],
       "anomalies": ["readmission_30j = true at 5% rate"]
@@ -161,6 +276,10 @@ The key architectural decision is the **Schema Spec** — a structured JSON file
   "aida_questions": [
     "Which GHMs generate the most T2A revenue?",
     "What is the 30-day readmission rate per medical pole?"
+  ],
+  "rls_column": "pole_responsable",
+  "sensitive_columns": [
+    { "name": "tarif_ghs", "type": "amount", "mask": "range", "trino_type": "DECIMAL(10,2)" }
   ]
 }
 ```
@@ -257,21 +376,25 @@ python pmsi-activite-hospitaliere-data.py \
 
 ## The Orchestrator: `/starburst-demo`
 
-**Role:** Single entry point. Takes a business request, sequences the four agents, surfaces results.
+**Role:** Single entry point. Takes a business request, sequences the 8-step pipeline, surfaces results.
 
 **Sequencing strategy:**
-- Agent 1 is **blocking** — the spec must exist before anything else can start
-- Agents 2 and 3 are **parallel** — both read the same spec, no dependency between them
-- Agent 4 **waits for both** — needs all three artifacts to exist
+- Step 1 (Agent 1) is **blocking** — the spec must exist before anything else can start
+- Steps 2 and 3 (Agents 2 and 3) are **parallel** — both read the same spec, no dependency between them
+- Step 4 (Agent 4) **waits for both** — needs all three artifacts to exist
+- Step 5 is a **HITL gate** — pipeline waits for explicit user confirmation before deploying
+- Step 6 has an **internal parallel phase**: catalog check (6b) + domain check (6c) + data.py load run simultaneously; only the YAML import (6d) waits for 6b + 6c to complete
+- Step 7 (BIAC) runs automatically after 6d succeeds
+- Step 8 (lineage) is **on-demand only** — triggered by the phrase `"génère le lineage pour {dp-name}"`
 
-This gives the minimum critical path: `Agent1 → (Agent2 ‖ Agent3) → Agent4`.
+Critical path: `Step1 → (Step2 ‖ Step3) → Step4 → Step5 → (6b ‖ 6c ‖ data.py) → 6d → Step7 → [Step8]`.
 
 **What the user sees:**
 
 ```
-✅ Agent 1 — Spec: dataproduct/Demo/pmsi-activite-hospitaliere-spec.json
-✅ Agent 2 — Script: dataproduct/Demo/pmsi-activite-hospitaliere-data.py
-✅ Agent 3 — YAML: dataproduct/Demo/pmsi-activite-hospitaliere-dp.yaml
+✅ Step 1 — Spec: dataproduct/Demo/pmsi-activite-hospitaliere-spec.json
+✅ Step 2 — Script: dataproduct/Demo/pmsi-activite-hospitaliere-data.py
+✅ Step 3 — YAML: dataproduct/Demo/pmsi-activite-hospitaliere-dp.yaml
 
 ══════════════════════════════════════════
   Coherence Check — pmsi-activite-hospitaliere
@@ -286,10 +409,17 @@ This gives the minimum critical path: `Agent1 → (Agent2 ‖ Agent3) → Agent4
 
 Résultat : 0 issue — artifacts cohérents et prêts.
 
+[Step 5 — HITL] Review artifacts above. Confirme pour déployer.
+
+✅ Step 6 — Data chargée (3 000 lignes), Data Product importé
+✅ Step 7 — BIAC
+  pmsi_activite_hospitaliere_superuser  → starburst_service
+  pmsi_activite_hospitaliere_user       → RLS: pole_responsable, CLS: tarif_ghs
+  pmsi_activite_hospitaliere_data_ing   → cross-DP + iceberg raw
+
 Prochaines étapes :
-  1. Charger les données → python *-data.py --host ...
-  2. Déployer le Data Product → POST /api/v1/dataProduct/products/import
-  3. Tester AIDA avec les 6 questions de la spec
+  • Tester AIDA avec les 6 questions de la spec
+  • Générer le lineage → "génère le lineage pour pmsi-activite-hospitaliere"
 ```
 
 ---
@@ -338,6 +468,8 @@ This makes it immediately obvious which files belong together, and allows the co
 - **`SELECT *` in `definitionQuery` is unverifiable** — the coherence checker flags it as a warning but cannot resolve column-level checks without executing the query.
 - **Agent 4 cannot auto-fix all discrepancies** — structural issues (missing table in YAML with no corresponding DDL) are reported but require human resolution.
 - **Cluster-specific values require human confirmation** — `data_domain_name` must exist on the target cluster; the agent uses a validated allowlist but cannot query the cluster to verify.
+- **BIAC view→table mapping is heuristic** — the lineage script uses shared word segments to connect views to source tables; this works well for sensibly named schemas but may produce incorrect arrows for very short or ambiguous names.
+- **`allEntities: true` in BIAC grants cannot coexist with entity-level attributes** — if catalog/schema are specified alongside `allEntities`, the REST API returns an error. The BIAC step always uses one or the other, never both.
 
 ---
 

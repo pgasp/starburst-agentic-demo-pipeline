@@ -89,6 +89,34 @@ Kebab-case, 3–5 words, no client name (reusable across clients):
 - ✓ `transactions-fraude-retail`
 - ✗ `bnp-transactions` (client-specific)
 
+### BIAC fields (auto-detect)
+
+After designing the tables, identify two fields required for automatic BIAC setup:
+
+**`rls_column`** — Column used for row-level security on fact tables. Detection rules:
+- Look for an ownership/segmentation column on the main fact table: patterns like `_owner`, `_responsable`, `_assignee`, `region`, `department`, `entity`, `desk_*`, `agence_*`
+- Must be `VARCHAR` with a natural "who owns this row" meaning
+- If no obvious candidate → set `null` and note it
+- If ambiguous (multiple candidates) → confirm with user before finalizing
+
+**`sensitive_columns`** — Columns to mask for restricted users. Auto-detect by name pattern:
+- `type: "amount"` → matches: `*_eur`, `*_usd`, `*_chf`, `montant*`, `*amount*`, `*solde*`, `*tarif*`, `*indemnite*`, `*cout*` → `mask: "range"` (DECIMAL: `ROUND({col} / 100000) * 100000`)
+- `type: "id"` → matches: `*_lei`, `*_isin`, `*_siren`, `*_siret`, `*_nir`, `*_iban`, `*_bic`, identifier `*_id` columns that are NOT PK/FK → `mask: "prefix"` (VARCHAR: `CONCAT(SUBSTR({col}, 1, 4), '****')`)
+- `type: "score"` → matches: `*score*`, `*risque*`, `*risk*`, `*probabilite*`, `*rating*` → `mask: "round"` (INTEGER: `CAST(ROUND(CAST({col} AS DOUBLE) / 10) * 10 AS INTEGER)`)
+
+Present the detected list to user before finalizing (unless in orchestrator mode):
+```
+── Colonnes détectées pour masquage BIAC ───────────────────
+  rls_column : {col} ({table})
+  sensitive  :
+    • {col} ({table}) → {type} / mask: {mask}
+    • ...
+
+Confirme ou corrige avant que je finalise la spec.
+```
+
+In orchestrator mode (invoked by `/starburst-demo`): auto-detect and include without confirmation.
+
 ---
 
 ## Step 3 — Produce the Schema Spec JSON
@@ -146,6 +174,15 @@ Output the full spec as a fenced `json` block. All fields are required.
       "description": "<what this query computes>",
       "tables_used": ["<table_name>"]
     }
+  ],
+  "rls_column": "<snake_case column for row-level security on fact tables, or null>",
+  "sensitive_columns": [
+    {
+      "name": "<col_name>",
+      "type": "<amount|id|score>",
+      "mask": "<range|prefix|round>",
+      "trino_type": "<exact Trino type of this column>"
+    }
   ]
 }
 ```
@@ -157,6 +194,8 @@ Output the full spec as a fenced `json` block. All fields are required.
 - [ ] `data_domain_name` is one of the safe values listed above
 - [ ] `dp_name` contains no client name and is kebab-case
 - [ ] Each fact table has ≥1 measure, ≥1 date, ≥1 anomaly flag
+- [ ] `rls_column` references an existing `VARCHAR` column in a fact table (or is `null`)
+- [ ] All `sensitive_columns` reference existing columns with matching `trino_type`
 
 ---
 
