@@ -146,7 +146,7 @@ metadata:
     - <aida_q4>
     - <aida_q5>
 owners:
-  - name: "Information Systems Department"
+  - name: "Direction des Systèmes d'Information"
     email: "dsi@demo.starburst.io"
 tags:
   - "<tag1>"
@@ -281,14 +281,13 @@ Column order must match the spec (fact table columns first, then dim columns for
 - Every column needs a `type:` field in lowercase
 - Write every `description:` in plain business language — no SQL jargon
 - **Enum/categorical columns — always list possible values explicitly.** For any column whose values are a fixed set (type codes, status flags, rating scales, roles), append the exhaustive value list to the description:
-  `"<business meaning> - values: val1 (meaning), val2 (meaning), val3"`
+  `"<business meaning> - valeurs : val1 (meaning), val2 (meaning), val3"`
   This is the single highest-impact signal for AIDA — it allows the assistant to filter and explain values without guessing.
   Examples:
-  - status code: `"Case status - values: EN_COURS, VALIDE, REFUSE, ARCHIVE"`
-  - role: `"Party role - values: emprunteur (main debtor), garant (personal guarantee)"`
-  (data values such as `EN_COURS` or `emprunteur` are kept exactly as they appear in the data; only the explanatory text is in English)
-- Write every `description:` in English
-- `description:` fields support full UTF-8 — keep accents and punctuation of proper nouns and data values
+  - statut code: `"Statut du dossier - valeurs : EN_COURS, VALIDE, REFUSE, ARCHIVE"`
+  - role: `"Rôle de la partie - valeurs : emprunteur (débiteur principal), garant (sûreté personnelle)"`
+- `description:` fields support full UTF-8 — keep proper French accents and punctuation
+- Customer-facing text (descriptions, AIDA questions) is in French by default. English version on explicit request from Pascal.
 
 ### metadata.description — Markdown format with 4 sections
 

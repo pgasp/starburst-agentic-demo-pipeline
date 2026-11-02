@@ -64,7 +64,7 @@ Reason about the domain before writing anything. Apply these rules strictly.
 - Design **5–6 questions** that a business user (not a developer) would naturally ask
 - Each question must be answerable by a single SQL query on the schema
 - Cover the mix: ranking, aggregation, KPI, time trend, anomaly detection
-- Phrase in English (including for French customers)
+- Phrase in the audience's language (FR if French client, EN otherwise). English version on explicit request from Pascal.
 - Questions must reference only columns that exist in the spec — never invent
 
 ### Anomaly patterns
@@ -130,7 +130,7 @@ Output the full spec as a fenced `json` block. All fields are required.
   "vertical": "<Healthcare|Finance|Logistics|Public Sector|Industry|...>",
   "data_domain_name": "<Healthcare|Finance|Logistics|HR|Sales|Operations|Public Sector>",
   "client": "<client or event name>",
-  "audience": "<IT|Business|C-level|Mixed>",
+  "audience": "<DSI|Métier|C-level|Mixed>",
   "summary": "<one sentence — appears in Data Product UI, max 120 chars>",
   "description": {
     "overview": "<2-3 sentences on what this data product covers>",
@@ -248,27 +248,27 @@ Confirm with:
 ### Healthcare / PMSI
 Typical tables: `sejour_hospitalier` (fact), `ghm_valorisation` (ref), `actes_ccam` (fact)
 Key measures: `duree_sejour INTEGER`, `tarif_ghs DOUBLE`, `readmission_30j BOOLEAN`
-AIDA: volumes by GHM, average length of stay by clinical unit, readmission rate, T2A by pathology
+AIDA: volumes par GHM, DMS par pôle, taux de réadmission, T2A par pathologie
 
 ### Finance / Retail Banking
 Tables: `transaction` (fact), `client` (dim), `compte` (dim), `agence` (ref)
 Measures: `montant DECIMAL(12,2)`, `solde DOUBLE`, `fraude_flag BOOLEAN`
-AIDA: suspicious transactions, at-risk customers, average balance by segment
+AIDA: transactions suspectes, clients à risque, solde moyen par segment
 
 ### Logistics
 Tables: `commande` (fact), `expedition` (fact), `entrepot` (dim), `transporteur` (ref)
 Measures: `delai_livraison INTEGER`, `cout_transport DOUBLE`, `retard_flag BOOLEAN`
-AIDA: delay rate by carrier, average cost per route, backlogged orders
+AIDA: taux de retard par transporteur, coût moyen par route, commandes en souffrance
 
 ### Insurance
 Typical tables: `sinistre` (fact), `contrat` (dim), `assure` (dim)
 Key measures: `montant_indemnise DECIMAL(12,2)`, `delai_expertise_jours INTEGER`, `fraude_flag BOOLEAN`
-AIDA: open claims by type, average assessment delay, fraud rate, indemnified amounts by region
+AIDA: sinistres ouverts par type, délai moyen d'expertise, taux de fraude, montants indemnisés par région
 
 ### Public Sector
 Tables: `dossier` (fact), `beneficiaire` (dim), `prestation` (ref)
 Measures: `montant_verse DECIMAL(12,2)`, `delai_traitement INTEGER`, `anomalie_flag BOOLEAN`
-AIDA: average processing time, amounts paid by region, cases flagged as anomalies
+AIDA: délai moyen de traitement, montants versés par région, dossiers en anomalie
 
 ---
 
