@@ -1,12 +1,12 @@
 ---
 name: starburst-demo-dp-builder
 description: >
-  Agent 3 du pipeline demo Starburst. Lit un Schema Spec JSON (<dp-name>-spec.json)
-  et génère le Data Product YAML Starburst (<dp-name>-dp.yaml) : vues, column docs,
-  sample queries SQL, AIDA questions. Garantit la cohérence avec la spec.
-  Invoqué par /starburst-demo ou directement.
-  Triggers on: "génère le data product depuis la spec", "dp builder", "agent 3 demo",
-  "crée le YAML depuis la spec", "génère le YAML depuis la spec".
+  Agent 3 of the Starburst demo pipeline. Reads a Schema Spec JSON (<dp-name>-spec.json)
+  and generates the Starburst Data Product YAML (<dp-name>-dp.yaml): views, column docs,
+  SQL sample queries, AIDA questions. Guarantees consistency with the spec.
+  Invoked by /starburst-demo or directly.
+  Triggers on: "generate the data product from the spec", "dp builder", "agent 3 demo",
+  "create the YAML from the spec", "generate the YAML from the spec".
 ---
 
 # Starburst Demo DP Builder — Agent 3
@@ -27,8 +27,8 @@ If a `<dp-name>-spec.json` file path is provided in the arguments, read it direc
 If no path is provided, search for JSON spec files in `dataproduct/` and list them,
 then ask the user which one to use:
 
-> "Quel fichier spec dois-je utiliser pour générer le Data Product YAML ?
-> Voici les specs trouvées : `<list>`"
+> "Which spec file should I use to generate the Data Product YAML?
+> Here are the specs found: `<list>`"
 
 Once the spec file is identified, read it and extract all fields before proceeding.
 
@@ -41,7 +41,7 @@ Once the spec file is identified, read it and extract all fields before proceedi
 If invoked by the orchestrator, the `catalogName` is passed as an argument → use it directly.
 
 If invoked directly or `catalogName` is not provided:
-- Ask: "Quel est le nom du catalog Data Product sur ton cluster ? (ex: `data_product`, `data_products`)"
+- Ask: "What is the name of the Data Product catalog on your cluster? (e.g. `data_product`, `data_products`)"
 - Or, if host/user/password are available, run `SHOW CATALOGS` to find it automatically:
   ```python
   from sqlalchemy import create_engine, text
@@ -146,7 +146,7 @@ metadata:
     - <aida_q4>
     - <aida_q5>
 owners:
-  - name: "Direction des Systèmes d'Information"
+  - name: "Information Systems Department"
     email: "dsi@demo.starburst.io"
 tags:
   - "<tag1>"
@@ -178,10 +178,10 @@ exportMetadata: {}
 
 - **No blank lines between YAML fields** at any level — SnakeYAML fails with BLANK_LINE error. Blank lines *inside* a `|-` scalar value are fine.
 - **No inline YAML comments** (`#` after a value) — embed notes in description strings
-- **`metadata.description` MUST use `|-`** (literal block scalar, strip trailing newline) — préserve les sauts de ligne pour le rendu Markdown dans le portail. Ne jamais utiliser `>-` (folded) — colapserait tout en un seul paragraphe illisible.
+- **`metadata.description` MUST use `|-`** (literal block scalar, strip trailing newline) — preserves line breaks for Markdown rendering in the portal. Never use `>-` (folded) — it would collapse everything into a single unreadable paragraph.
 - **All other `description:` fields** (views, columns, sampleQueries) use plain quoted strings on one line
 - **`catalogName` must match the catalog verified in Step 2** — never invent, never hardcode
-- **`name:` fields — ASCII only** (`metadata.name`, `views[].name`, `sampleQueries[].name`, tags) — contrainte Starburst sur les identifiants, pas une contrainte YAML. Les `description:` supportent pleinement l'UTF-8 (accents, caractères spéciaux bienvenus).
+- **`name:` fields — ASCII only** (`metadata.name`, `views[].name`, `sampleQueries[].name`, tags) — a Starburst constraint on identifiers, not a YAML constraint. `description:` fields fully support UTF-8 (accents and special characters are welcome).
 
 ### name length — HARD LIMIT: 40 characters
 
@@ -194,14 +194,14 @@ Count characters explicitly before finalizing any name field.
 
 ### catalogName rule
 
-On warpspeed2 : `data_products` (pluriel). En général : vérifier le nom du catalog Data Product sur le cluster cible. Ne jamais inventer.
+On warpspeed2: `data_products` (plural). In general: check the name of the Data Product catalog on the target cluster. Never invent.
 
 ### dataDomainName — safe values only
 
 Must be exactly one of (standard clusters): `Healthcare`, `Finance`, `Logistics`, `HR`, `Sales`,
 `Operations`, `Public Sector`
 
-**Cluster-specific override — warpspeed2 :** `Hôpital Universitaire` pour le domaine santé (pas `Healthcare`). Vérifier les domaines réels du cluster cible avant déploiement via `GET /api/v1/dataProduct/domains`.
+**Cluster-specific override — warpspeed2:** `Hôpital Universitaire` for the healthcare domain (not `Healthcare`) — this is the literal domain name existing on that cluster, keep it as is. Check the actual domains of the target cluster before deployment via `GET /api/v1/dataProduct/domains`.
 
 If `spec.data_domain_name` is not in this list, flag it and default to `Operations`.
 
@@ -281,16 +281,18 @@ Column order must match the spec (fact table columns first, then dim columns for
 - Every column needs a `type:` field in lowercase
 - Write every `description:` in plain business language — no SQL jargon
 - **Enum/categorical columns — always list possible values explicitly.** For any column whose values are a fixed set (type codes, status flags, rating scales, roles), append the exhaustive value list to the description:
-  `"<business meaning> - valeurs : val1 (meaning), val2 (meaning), val3"`
+  `"<business meaning> - values: val1 (meaning), val2 (meaning), val3"`
   This is the single highest-impact signal for AIDA — it allows the assistant to filter and explain values without guessing.
   Examples:
-  - statut code: `"Statut du dossier - valeurs : EN_COURS, VALIDE, REFUSE, ARCHIVE"`
-  - role: `"Rôle de la partie - valeurs : emprunteur (débiteur principal), garant (sûreté personnelle)"`
-- `description:` fields support full UTF-8 — keep proper French accents and punctuation
+  - status code: `"Case status - values: EN_COURS, VALIDE, REFUSE, ARCHIVE"`
+  - role: `"Party role - values: emprunteur (main debtor), garant (personal guarantee)"`
+  (data values such as `EN_COURS` or `emprunteur` are kept exactly as they appear in the data; only the explanatory text is in English)
+- Write every `description:` in English
+- `description:` fields support full UTF-8 — keep accents and punctuation of proper nouns and data values
 
 ### metadata.description — Markdown format with 4 sections
 
-Utiliser `|-` (literal block scalar, strip trailing newline). Structure en 4 sections obligatoires :
+Use `|-` (literal block scalar, strip trailing newline). Structure in 4 mandatory sections:
 
 ```yaml
   description: |-
@@ -313,10 +315,10 @@ Utiliser `|-` (literal block scalar, strip trailing newline). Structure en 4 sec
     - <aida_q5>
 ```
 
-- `|-` préserve les newlines — le Markdown est rendu dans le portail Starburst
-- Les lignes vides entre sections sont autorisées (à l'intérieur du bloc `|-`)
-- Utiliser toutes les questions AIDA de `spec.aida_questions` (5 idéalement)
-- Business use cases depuis `spec.description.business_use_cases`, une puce par use case
+- `|-` preserves newlines — the Markdown is rendered in the Starburst portal
+- Blank lines between sections are allowed (inside the `|-` block)
+- Use all the AIDA questions from `spec.aida_questions` (ideally 5)
+- Business use cases from `spec.description.business_use_cases`, one bullet per use case
 
 ---
 
@@ -327,14 +329,14 @@ Run this checklist mentally before writing the file:
 - [ ] Every column listed in each view's `columns:` block exists in `spec.tables`
 - [ ] Column types are all lowercase
 - [ ] Every `sampleQuery` references a view that exists in the `views:` block
-- [ ] `catalogName` correspond au catalog vérifié en Step 2 (jamais hardcodé, jamais inventé)
+- [ ] `catalogName` matches the catalog verified in Step 2 (never hardcoded, never invented)
 - [ ] `dataDomainName` is one of the seven safe values
 - [ ] No internal hostnames, IPs, or account IDs in the YAML
 - [ ] No blank lines between fields at any level
 - [ ] No inline YAML comments
 - [ ] All `name:` fields are ≤ 40 characters
 - [ ] Tags are plain strings (not objects)
-- [ ] `metadata.description` uses `|-` (literal block) avec 4 sections markdown : `## Overview`, `## Business context`, `## Business use cases`, `## Sample questions for AIDA`
+- [ ] `metadata.description` uses `|-` (literal block) with 4 markdown sections: `## Overview`, `## Business context`, `## Business use cases`, `## Sample questions for AIDA`
 - [ ] Enum/categorical columns have their possible values listed in `description:`
 - [ ] At least 8 sample queries: 5 single-view + 3 multi-view JOIN
 - [ ] `name:` fields are ASCII only (no accents)
@@ -360,14 +362,14 @@ Where:
 - `<dp-name>` is `spec.dp_name` exactly as written (kebab-case)
 
 If the client/entity path cannot be inferred from the spec file location, ask once:
-> "Où dois-je sauvegarder le YAML ? (ex: `dataproduct/Santexpo/PMSI/`)"
+> "Where should I save the YAML? (e.g. `dataproduct/Santexpo/PMSI/`)"
 
 If a file with the same name already exists, warn and ask for confirmation before
 overwriting.
 
 Confirm with:
-> "✓ Data Product YAML sauvegardé : `dataproduct/<path>/<dp-name>-dp.yaml`
-> Prochaine étape : Agent 4 (Coherence Checker) valide la cohérence avec le script de données."
+> "✓ Data Product YAML saved: `dataproduct/<path>/<dp-name>-dp.yaml`
+> Next step: Agent 4 (Coherence Checker) validates consistency with the data script."
 
 ---
 
@@ -375,13 +377,13 @@ Confirm with:
 
 | Domain | Fact table | Dim/ref table | Suggested denorm view name |
 |---|---|---|---|
-| Santé / PMSI | `sejour_hospitalier` | `ghm_valorisation` | `valorisation_t2a` |
+| Healthcare / PMSI | `sejour_hospitalier` | `ghm_valorisation` | `valorisation_t2a` |
 | Finance | `transaction` | `client` | `transactions_clients` |
 | Finance | `credit` | `client` | `credits_clients` |
-| Logistique | `expedition` | `transporteur` | `expeditions_detail` |
-| Logistique | `commande` | `entrepot` | `commandes_entrepot` |
-| Assurance | `sinistre` | `contrat` | `sinistres_contrats` |
-| Secteur Public | `dossier` | `beneficiaire` | `dossiers_beneficiaires` |
+| Logistics | `expedition` | `transporteur` | `expeditions_detail` |
+| Logistics | `commande` | `entrepot` | `commandes_entrepot` |
+| Insurance | `sinistre` | `contrat` | `sinistres_contrats` |
+| Public Sector | `dossier` | `beneficiaire` | `dossiers_beneficiaires` |
 
 ---
 

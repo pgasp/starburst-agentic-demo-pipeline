@@ -1,134 +1,134 @@
 ---
 name: starburst-demo
 description: >
-  Orchestrateur du pipeline demo Starburst. Prend une demande business (vertical,
-  use case, client) et orchestre 4 agents pour produire dataset + data product
-  cohérents : consultant → [data modeler ‖ dp builder] → coherence checker.
-  Triggers on: "prépare un demo pour", "génère un demo complet", "demo pipeline",
-  "crée un demo starburst pour", "pipeline demo", "full demo pour", "demo pour".
+  Orchestrator of the Starburst demo pipeline. Takes a business request (vertical,
+  use case, customer) and orchestrates 4 agents to produce a consistent dataset +
+  data product: consultant → [data modeler ‖ dp builder] → coherence checker.
+  Triggers on: "prepare a demo for", "generate a full demo", "demo pipeline",
+  "create a starburst demo for", "pipeline demo", "full demo for", "demo for".
 ---
 
-## Vue d'ensemble du pipeline
+## Pipeline overview
 
 ```
 User request
      ↓
-Agent 1 : starburst-demo-consultant   → <dp-name>-spec.json
+Agent 1: starburst-demo-consultant   → <dp-name>-spec.json
      ↓
-     ├── Agent 2 : starburst-demo-data-modeler   → <dp-name>-data.py   ┐ (parallèle)
-     └── Agent 3 : starburst-demo-dp-builder     → <dp-name>-dp.yaml   ┘
+     ├── Agent 2: starburst-demo-data-modeler    → <dp-name>-data.py   ┐ (parallel)
+     └── Agent 3: starburst-demo-dp-builder      → <dp-name>-dp.yaml   ┘
      ↓
-Agent 4 : starburst-demo-coherence-checker → rapport + corrections
+Agent 4: starburst-demo-coherence-checker → report + fixes
      ↓
-HITL Review → confirmation déploiement
+HITL Review → deployment confirmation
      ↓
      ├── 6b: SHOW CATALOGS (catalogName)   ┐
-     ├── 6c: GET/POST domain               ┘ (parallèle) → 6d: POST dp.yaml import
-     └── data.py (chargement iceberg raw)  ┘
+     ├── 6c: GET/POST domain               ┘ (parallel) → 6d: POST dp.yaml import
+     └── data.py (iceberg raw load)        ┘
      ↓
-Step 7 : BIAC — auto après Step 6 (superuser / user / data_ing)
+Step 7: BIAC — auto after Step 6 (superuser / user / data_ing)
      ↓
-(optionnel) Step 8 : Lineage — trigger: "génère le lineage pour <dp-name>"
+(optional) Step 8: Lineage — trigger: "generate the lineage for <dp-name>"
 ```
 
 ---
 
-## Step 1 — Collecter le contexte business
+## Step 1 — Collect the business context
 
-Si des arguments sont fournis, les utiliser directement.
-Sinon, demander en **un seul message** :
+If arguments are provided, use them directly.
+Otherwise, ask in **a single message**:
 
-> "Pour générer ce demo, dis-moi :
-> - **Vertical / secteur** (ex : Santé, Banque, Logistique)
-> - **Cas d'usage principal** (ex : pilotage PMSI, détection fraude)
-> - **2–3 questions business** que le client doit pouvoir poser
-> - **Client ou événement** (ex : Santexpo, BNP Paribas)
-> - **Audience** : DSI, Métier, C-level ?"
-
----
-
-## Step 2 — Agent 1 : Demo Consultant (foreground)
-
-Utiliser le tool **Agent** pour spawner un sous-agent avec ces instructions :
-
-> "Tu es l'Agent 1 du pipeline demo Starburst. Utilise le Skill tool pour invoquer `starburst-demo-consultant` : `Skill(skill='starburst-demo-consultant', args='[contexte business complet]')`. Tu es en mode orchestrateur — skip la validation utilisateur (Step 4 du skill) et sauvegarde directement la spec dans `dataproduct/<Client>/<Entity>/<dp-name>-spec.json`. Retourne le chemin complet du fichier sauvegardé et le contenu JSON de la spec."
-
-Attendre la complétion — la spec est nécessaire avant de continuer.
-
-Afficher : `✅ Agent 1 — Spec produite : <chemin>`
+> "To generate this demo, tell me:
+> - **Vertical / industry** (e.g. Healthcare, Banking, Logistics)
+> - **Main use case** (e.g. PMSI monitoring, fraud detection)
+> - **2–3 business questions** the customer must be able to ask
+> - **Customer or event** (e.g. Santexpo, BNP Paribas)
+> - **Audience**: IT leadership, Business, C-level?"
 
 ---
 
-## Step 3 — Agents 2 & 3 en parallèle (foreground)
+## Step 2 — Agent 1: Demo Consultant (foreground)
 
-Spawner **deux agents simultanément** dans le même message (deux appels Agent dans la même réponse) :
+Use the **Agent** tool to spawn a sub-agent with these instructions:
 
-**Agent 2 — Data Modeler :**
-> "Tu es l'Agent 2 du pipeline demo Starburst. Utilise le Skill tool pour invoquer `starburst-demo-data-modeler` : `Skill(skill='starburst-demo-data-modeler', args='<chemin-spec.json>')`. La spec se trouve ici : `<chemin-spec.json>`. Génère et sauvegarde `<dp-name>-data.py` dans le même dossier. Retourne le chemin du fichier et un résumé des tables générées."
+> "You are Agent 1 of the Starburst demo pipeline. Use the Skill tool to invoke `starburst-demo-consultant`: `Skill(skill='starburst-demo-consultant', args='[full business context]')`. You are in orchestrator mode — skip the user validation (Step 4 of the skill) and save the spec directly to `dataproduct/<Client>/<Entity>/<dp-name>-spec.json`. Return the full path of the saved file and the JSON content of the spec."
 
-**Agent 3 — DP Builder :**
-> "Tu es l'Agent 3 du pipeline demo Starburst. Utilise le Skill tool pour invoquer `starburst-demo-dp-builder` : `Skill(skill='starburst-demo-dp-builder', args='<chemin-spec.json>')`. La spec se trouve ici : `<chemin-spec.json>`. Génère et sauvegarde `<dp-name>-dp.yaml` dans le même dossier. Retourne le chemin du fichier et un résumé des vues générées."
+Wait for completion — the spec is required before continuing.
 
-Attendre les deux completions.
+Display: `✅ Agent 1 — Spec produced: <path>`
 
-Afficher :
+---
+
+## Step 3 — Agents 2 & 3 in parallel (foreground)
+
+Spawn **two agents simultaneously** in the same message (two Agent calls in the same response):
+
+**Agent 2 — Data Modeler:**
+> "You are Agent 2 of the Starburst demo pipeline. Use the Skill tool to invoke `starburst-demo-data-modeler`: `Skill(skill='starburst-demo-data-modeler', args='<spec.json-path>')`. The spec is here: `<spec.json-path>`. Generate and save `<dp-name>-data.py` in the same folder. Return the file path and a summary of the generated tables."
+
+**Agent 3 — DP Builder:**
+> "You are Agent 3 of the Starburst demo pipeline. Use the Skill tool to invoke `starburst-demo-dp-builder`: `Skill(skill='starburst-demo-dp-builder', args='<spec.json-path>')`. The spec is here: `<spec.json-path>`. Generate and save `<dp-name>-dp.yaml` in the same folder. Return the file path and a summary of the generated views."
+
+Wait for both to complete.
+
+Display:
 ```
-✅ Agent 2 — Script data : <chemin>
-✅ Agent 3 — Data Product YAML : <chemin>
+✅ Agent 2 — Data script: <path>
+✅ Agent 3 — Data Product YAML: <path>
 ```
 
 ---
 
-## Step 4 — Agent 4 : Coherence Checker (foreground)
+## Step 4 — Agent 4: Coherence Checker (foreground)
 
-Spawner un agent avec :
+Spawn an agent with:
 
-> "Tu es l'Agent 4 du pipeline demo Starburst. Utilise le Skill tool pour invoquer `starburst-demo-coherence-checker` : `Skill(skill='starburst-demo-coherence-checker', args='<dossier>')`. Les artifacts se trouvent dans : `<dossier>`. Analyse les trois fichiers (<dp-name>-spec.json, <dp-name>-data.py, <dp-name>-dp.yaml), applique les corrections nécessaires, et retourne le rapport complet."
+> "You are Agent 4 of the Starburst demo pipeline. Use the Skill tool to invoke `starburst-demo-coherence-checker`: `Skill(skill='starburst-demo-coherence-checker', args='<folder>')`. The artifacts are in: `<folder>`. Analyze the three files (<dp-name>-spec.json, <dp-name>-data.py, <dp-name>-dp.yaml), apply the necessary fixes, and return the full report."
 
-Afficher le rapport de cohérence tel quel.
+Display the coherence report as is.
 
 ---
 
-## Step 5 — Résumé et prochaines étapes
+## Step 5 — Summary and next steps
 
-Afficher un résumé final :
+Display a final summary:
 
 ```
 ══════════════════════════════════════════
-  Demo pipeline terminé — <dp-name>
+  Demo pipeline complete — <dp-name>
 ══════════════════════════════════════════
 
-Artifacts générés dans dataproduct/<Client>/<Entity>/ :
-  📋 <dp-name>-spec.json     — Schema Spec (contrat)
-  🐍 <dp-name>-data.py       — Script de données (<N> tables, <N> rows)
-  📦 <dp-name>-dp.yaml       — Data Product YAML (<N> vues)
+Artifacts generated in dataproduct/<Client>/<Entity>/:
+  📋 <dp-name>-spec.json     — Schema Spec (contract)
+  🐍 <dp-name>-data.py       — Data script (<N> tables, <N> rows)
+  📦 <dp-name>-dp.yaml       — Data Product YAML (<N> views)
 
-Cohérence : <✅ OK | ⚠️ N corrections appliquées>
+Consistency: <✅ OK | ⚠️ N fixes applied>
 
-Prochaines étapes :
-  1. Déployer → données (iceberg raw) + Data Product + BIAC en une seule commande
-  2. Tester AIDA avec les questions de la spec
-  3. Générer le lineage → "génère le lineage pour <dp-name>"
+Next steps:
+  1. Deploy → data (iceberg raw) + Data Product + BIAC in a single command
+  2. Test AIDA with the spec questions
+  3. Generate the lineage → "generate the lineage for <dp-name>"
 ```
 
-Puis demander :
-> "Tu veux que je déploie maintenant sur un cluster ? (chargement des données + import Data Product + BIAC setup — j'aurai besoin du host, user et password)"
+Then ask:
+> "Do you want me to deploy to a cluster now? (data load + Data Product import + BIAC setup — I'll need the host, user and password)"
 
-Si oui → aller au Step 6.
+If yes → go to Step 6.
 
 ---
 
-## Step 6 — Déploiement (parallélisé)
+## Step 6 — Deployment (parallelized)
 
-### 6a — Collecter les paramètres cluster
+### 6a — Collect the cluster parameters
 
-Demander en un seul message si manquants : host, user, password, domaine cible.
+Ask in a single message if missing: host, user, password, target domain.
 
-### 6b + 6c + data.py — Phase parallèle (lancer simultanément)
+### 6b + 6c + data.py — Parallel phase (launch simultaneously)
 
-Les trois opérations sont indépendantes — les démarrer dans le même appel :
+The three operations are independent — start them in the same call:
 
-**6b — Valider le catalogName** (interroge `system`, pas besoin du domaine) :
+**6b — Validate the catalogName** (queries `system`, no domain needed):
 ```python
 from sqlalchemy import create_engine, text
 engine = create_engine(
@@ -139,12 +139,12 @@ with engine.begin() as conn:
     rows = conn.execute(text("SHOW CATALOGS")).fetchall()
     catalogs = [r[0] for r in rows if "data" in r[0].lower()]
 ```
-- Un seul résultat → l'utiliser ; plusieurs → demander ; aucun → demander à l'user.
+- A single result → use it; several → ask; none → ask the user.
 
-**6c — Valider / créer le domaine** (appel REST indépendant) :
-`GET /api/v1/dataProduct/domains` — si absent → `POST /api/v1/dataProduct/domains`.
+**6c — Validate / create the domain** (independent REST call):
+`GET /api/v1/dataProduct/domains` — if missing → `POST /api/v1/dataProduct/domains`.
 
-**data.py — Charger les données dans Iceberg raw** (indépendant du catalog DP et du domaine) :
+**data.py — Load the data into Iceberg raw** (independent of the DP catalog and the domain):
 ```bash
 python <dp-name>-data.py \
   --host <host> --user <user> --password <password> \
@@ -152,60 +152,60 @@ python <dp-name>-data.py \
   --location s3://<bucket>/<path>/
 ```
 
-Attendre la fin des trois avant de continuer.
+Wait for all three to finish before continuing.
 
-Afficher :
+Display:
 ```
-✅ 6b — catalogName : <catalog>
-✅ 6c — Domaine : <domain> (créé | existant)
-✅ data.py — <N> lignes chargées dans iceberg.<schema_raw>
+✅ 6b — catalogName: <catalog>
+✅ 6c — Domain: <domain> (created | existing)
+✅ data.py — <N> rows loaded into iceberg.<schema_raw>
 ```
 
-### 6d — Importer le Data Product YAML
+### 6d — Import the Data Product YAML
 
-Mettre à jour `catalogName` dans le YAML avec la valeur trouvée en 6b, puis :
+Update `catalogName` in the YAML with the value found in 6b, then:
 
 ```
 POST /api/v1/dataProduct/products/import
 Content-Type: application/yaml
-Body: <dp-name>-dp.yaml (avec catalogName mis à jour)
+Body: <dp-name>-dp.yaml (with updated catalogName)
 ```
 
-Si 409 (produit déjà existant) → `catalogName` est immutable, supprimer depuis l'UI puis relancer.
+If 409 (product already exists) → `catalogName` is immutable, delete it from the UI then re-run.
 
 ---
 
-## Step 7 — BIAC Setup (automatique après déploiement)
+## Step 7 — BIAC Setup (automatic after deployment)
 
-Lancer immédiatement après confirmation du Step 6. Pas d'attente de confirmation utilisateur.
+Launch immediately after Step 6 is confirmed. Do not wait for user confirmation.
 
-### 7a — Dériver les identifiants depuis la spec
+### 7a — Derive the identifiers from the spec
 
 ```python
 dp_name   = spec["dp_name"]
 segments  = dp_name.replace("-", "_").split("_")[:3]
 prefix    = "_".join(segments)
-# ex: "bnpp-cib-fraude-corporate" → "bnpp_cib_fraude"
+# e.g. "bnpp-cib-fraude-corporate" → "bnpp_cib_fraude"
 
-rls_col    = spec.get("rls_column")           # None si absent
+rls_col    = spec.get("rls_column")           # None if missing
 sensitive   = spec.get("sensitive_columns", [])
-catalog     = dp_yaml["metadata"]["catalogName"]  # ex: data_products
-schema      = dp_yaml["metadata"]["schemaName"]   # ex: cib_fraude_transactions_corporate
+catalog     = dp_yaml["metadata"]["catalogName"]  # e.g. data_products
+schema      = dp_yaml["metadata"]["schemaName"]   # e.g. cib_fraude_transactions_corporate
 views       = [v["name"] for v in dp_yaml.get("views", [])]
 
-# Valeurs pour substitution dans le template script :
-views_list    = repr(views)        # ex: ['vue_a', 'vue_b']
-rls_col_repr  = repr(rls_col)      # "None" ou '"nom_colonne"'
-sensitive_repr = repr(sensitive)   # liste Python littérale des sensitive_columns
-# env_path : chemin vers le fichier .env du cluster (ex: "dataproduct/servers/.env.warpspeed2")
-#             → récupéré depuis les paramètres collectés au Step 6a
+# Values for substitution in the script template:
+views_list    = repr(views)        # e.g. ['vue_a', 'vue_b']
+rls_col_repr  = repr(rls_col)      # "None" or '"column_name"'
+sensitive_repr = repr(sensitive)   # Python literal list of the sensitive_columns
+# env_path : path to the cluster's .env file (e.g. "dataproduct/servers/.env.warpspeed2")
+#             → taken from the parameters collected in Step 6a
 ```
 
-Si `demo_user` inconnu (pas dans la spec, pas de session en cours) : demander une fois à l'utilisateur.
+If `demo_user` is unknown (not in the spec, no current session): ask the user once.
 
-### 7b — Générer et exécuter le script BIAC
+### 7b — Generate and run the BIAC script
 
-Générer un script Python dans le scratchpad, instancié avec les valeurs ci-dessus depuis ce template, puis l'exécuter avec `python` :
+Generate a Python script in the scratchpad, instantiated with the values above from this template, then run it with `python`:
 
 ```python
 """BIAC Setup — {dp_name}"""
@@ -223,8 +223,8 @@ env  = load_env("{env_path}")
 HOST = env["SB_HOST"]; PORT = env.get("SB_PORT","443")
 USER = env["SB_USER"]; PWD  = env["SB_PASSWORD"]
 BASE = f"https://{HOST}:{PORT}"; AUTH = (USER, PWD)
-HW   = {"Content-Type":"application/json","Accept":"application/json","X-Trino-Role":"system=ROLE{sysadmin}"}  # {sysadmin} = syntaxe Starburst BIAC, pas un placeholder
-HR   = {"Accept":"application/json","X-Trino-Role":"system=ROLE{sysadmin}"}  # idem
+HW   = {"Content-Type":"application/json","Accept":"application/json","X-Trino-Role":"system=ROLE{sysadmin}"}  # {sysadmin} = Starburst BIAC syntax, not a placeholder
+HR   = {"Accept":"application/json","X-Trino-Role":"system=ROLE{sysadmin}"}  # same
 
 CATALOG="{catalog}"; SCHEMA="{schema}"; VIEWS={views_list}
 RLS_COL={rls_col_repr}  # None or "column_name"
@@ -290,47 +290,47 @@ for rid,label in [(sup_id,"superuser"),(usr_id,"user"),(ing_id,"data_ing")]:
 print("== BIAC complete ==")
 ```
 
-### 7c — Afficher la Next Steps card
+### 7c — Display the Next Steps card
 
 ```
-══ Demo pipeline complet — {dp-name} ══════════════════════════════════
-✅ Data Product déployé
-✅ 3 rôles BIAC créés :
-   • {prefix}_superuser → starburst_service  (vision globale)
-   • {prefix}_user      → {demo_user}        ({rls_col si non null: "RLS: {rls_col} + "}CLS colonnes sensibles)
-   • {prefix}_data_ing  → {demo_user}        (vues DP + cross-DP + raw Iceberg)
+══ Demo pipeline complete — {dp-name} ═════════════════════════════════
+✅ Data Product deployed
+✅ 3 BIAC roles created:
+   • {prefix}_superuser → starburst_service  (global view)
+   • {prefix}_user      → {demo_user}        ({rls_col if not null: "RLS: {rls_col} + "}CLS sensitive columns)
+   • {prefix}_data_ing  → {demo_user}        (DP views + cross-DP + raw Iceberg)
 
-── Checklist validation ────────────────────────────────────────────────
-  □ AIDA superuser  → toutes lignes, toutes colonnes
-  □ AIDA user       → lignes filtrées (RLS) + colonnes masquées (CLS)
-  □ AIDA data_ing   → vues DP + accès Iceberg raw
-  □ Questions J-30  → au moins 1 résultat sur chaque vue temporelle
+── Validation checklist ────────────────────────────────────────────────
+  □ AIDA superuser  → all rows, all columns
+  □ AIDA user       → filtered rows (RLS) + masked columns (CLS)
+  □ AIDA data_ing   → DP views + raw Iceberg access
+  □ D-30 questions  → at least 1 result on each time-based view
 
-── Quand tu as validé ──────────────────────────────────────────────────
-  → "génère le lineage pour {dp-name}"
+── Once you have validated ─────────────────────────────────────────────
+  → "generate the lineage for {dp-name}"
 ════════════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## Step 8 — Lineage (trigger utilisateur)
+## Step 8 — Lineage (user trigger)
 
-**Trigger** : l'utilisateur dit "génère le lineage pour {dp-name}" ou formule similaire.
+**Trigger**: the user says "generate the lineage for {dp-name}" or a similar phrasing.
 
-Ne pas générer automatiquement — attendre ce trigger explicite après validation de la démo.
+Do not generate automatically — wait for this explicit trigger after the demo has been validated.
 
-### 8a — Lire les artifacts
+### 8a — Read the artifacts
 
 ```
 dataproduct/<Client>/<Entity>/<dp-name>-spec.json
 dataproduct/<Client>/<Entity>/<dp-name>-dp.yaml
 ```
 
-Extraire : `dp_name`, `domain`, `client`, tables raw (spec), vues DP (yaml), `rls_column`, `sensitive_columns`, prefix BIAC (dérivé du dp_name).
+Extract: `dp_name`, `domain`, `client`, raw tables (spec), DP views (yaml), `rls_column`, `sensitive_columns`, BIAC prefix (derived from dp_name).
 
-### 8b — Générer le HTML de lineage
+### 8b — Generate the lineage HTML
 
-Tenter d'abord via le script générique :
+Try the generic script first:
 ```bash
 python .claude/commands/starburst-demo-lineage-gen.py \
   --spec "dataproduct/<Client>/<Entity>/<dp-name>-spec.json" \
@@ -338,43 +338,43 @@ python .claude/commands/starburst-demo-lineage-gen.py \
   --output "account/<Client>/<dp-name>-lineage.html"
 ```
 
-Si le script est absent ou échoue : générer le HTML directement, en s'inspirant du design de `account/BNPP/CIB/cib-data-lineage.html` — 2-panel (lineage gauche, BIAC droite), arrows SVG bézier, logo Starburst base64 inline, palette teal/navy.
+If the script is missing or fails: generate the HTML directly, following the design of `account/BNPP/CIB/cib-data-lineage.html` — 2-panel (lineage left, BIAC right), SVG bézier arrows, inline base64 Starburst logo, teal/navy palette.
 
-### 8c — Confirmer
+### 8c — Confirm
 
 ```
-✅ Lineage généré : account/<Client>/<dp-name>-lineage.html
-   Ouvrir dans le navigateur pour validation avant la démo.
+✅ Lineage generated: account/<Client>/<dp-name>-lineage.html
+   Open in the browser for validation before the demo.
 ```
 
 ---
 
-## Règles d'orchestration
+## Orchestration rules
 
-- **Agent 1 est toujours foreground** — sa spec est le contrat pour la suite.
-- **Agents 2 & 3 sont toujours parallèles** — les spawner dans le même appel.
-- **Agent 4 attend la fin des deux** avant de démarrer.
-- **Step 6 — phase parallèle** : 6b (catalog) + 6c (domain) + data.py sont indépendants — les lancer simultanément. 6d (import YAML) attend seulement 6b + 6c.
-- **Step 7 BIAC** : toujours lancer après Step 6 complet (6d réussi), sans demander confirmation.
-- **Step 8 Lineage** : uniquement sur trigger utilisateur — jamais automatique.
-- Si un agent échoue : signaler l'erreur, proposer de relancer cet agent seul.
-- Ne jamais skip l'Agent 4 — la cohérence est non-négociable.
-- Les sous-agents ont accès aux skills via le Skill tool — leur dire d'invoquer le skill par son nom.
+- **Agent 1 is always foreground** — its spec is the contract for what follows.
+- **Agents 2 & 3 are always parallel** — spawn them in the same call.
+- **Agent 4 waits for both to finish** before starting.
+- **Step 6 — parallel phase**: 6b (catalog) + 6c (domain) + data.py are independent — launch them simultaneously. 6d (YAML import) waits only for 6b + 6c.
+- **Step 7 BIAC**: always launch after Step 6 is complete (6d succeeded), without asking for confirmation.
+- **Step 8 Lineage**: only on user trigger — never automatic.
+- If an agent fails: report the error, offer to re-run that agent alone.
+- Never skip Agent 4 — consistency is non-negotiable.
+- Sub-agents have access to skills via the Skill tool — tell them to invoke the skill by name.
 
 ---
 
 ## Edge cases
 
-| Situation | Comportement |
+| Situation | Behavior |
 |---|---|
-| Spec déjà existante dans le dossier | Demander : "Utiliser la spec existante ou en générer une nouvelle ?" |
-| Agent 2 ou 3 échoue | Relancer l'agent en échec seul, ne pas re-exécuter les autres |
-| Agent 4 trouve des erreurs non corrigeables | Lister et demander à l'user comment procéder |
-| User veut sauter l'Agent 1 (spec fournie) | Lire la spec existante et démarrer à l'étape 3 |
-| Cluster indisponible au Step 5 | Afficher la commande, ne pas bloquer |
-| `rls_column` est null dans la spec | Skip Step 7 RLS — créer quand même les 3 rôles avec grants SELECT |
-| `sensitive_columns` est vide | Skip Step 7 CLS — pas de masquage pour `_user` |
-| `demo_user` inconnu | Demander une fois avant de lancer le script BIAC |
-| BIAC : rôle déjà existant | L'API renvoie l'id existant — continuer sans erreur |
-| BIAC : allEntities grant échoue | Signaler, continuer avec les autres grants — documenter le gap |
-| Lineage trigger avant déploiement | Afficher : "Déploie d'abord le DP et valide la démo, puis relance le trigger" |
+| Spec already exists in the folder | Ask: "Use the existing spec or generate a new one?" |
+| Agent 2 or 3 fails | Re-run the failed agent alone, do not re-run the others |
+| Agent 4 finds unfixable errors | List them and ask the user how to proceed |
+| User wants to skip Agent 1 (spec provided) | Read the existing spec and start at step 3 |
+| Cluster unavailable at Step 5 | Display the command, do not block |
+| `rls_column` is null in the spec | Skip Step 7 RLS — still create the 3 roles with SELECT grants |
+| `sensitive_columns` is empty | Skip Step 7 CLS — no masking for `_user` |
+| `demo_user` unknown | Ask once before launching the BIAC script |
+| BIAC: role already exists | The API returns the existing id — continue without error |
+| BIAC: allEntities grant fails | Report, continue with the other grants — document the gap |
+| Lineage trigger before deployment | Display: "Deploy the DP and validate the demo first, then re-run the trigger" |

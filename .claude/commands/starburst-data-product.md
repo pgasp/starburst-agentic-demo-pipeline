@@ -23,12 +23,12 @@ production-ready Starburst Data Product YAML file.
 
 **Before doing anything else**, send this message and wait for the answer:
 
-> **Quel est le nom exact du domaine de données sur le cluster Starburst cible ?**
-> (ex : `BALE 4`, `Credit Risk`, `Supply Chain`)
+> **What is the exact name of the data domain on the target Starburst cluster?**
+> (e.g. `BALE 4`, `Credit Risk`, `Supply Chain`)
 >
-> Ce nom doit correspondre exactement à un domaine existant sur le cluster — un nom
-> incorrect provoque une erreur `DATA_DOMAIN_NOT_FOUND` à l'import. Si le domaine
-> n'existe pas encore, il faut le créer dans Starburst avant de continuer.
+> This name must exactly match an existing domain on the cluster — an incorrect
+> name causes a `DATA_DOMAIN_NOT_FOUND` error at import. If the domain does not
+> exist yet, it must be created in Starburst before continuing.
 
 **Do NOT proceed to Step 2 until the user has provided this value.** Do NOT invent a domain name. Do NOT infer it from the table names or business context.
 
@@ -175,7 +175,7 @@ The `metadata.description` field uses `|-` (literal block) and **must render as 
 
 Rules for sample questions:
 - Phrase each as a complete question ending with `?`
-- Write in the same language as the domain context (French if client is French)
+- Write in English (including for French customers)
 - Questions must be answerable using the views defined in this product — not the source tables
 - Keep each question under 80 characters
 
@@ -183,22 +183,22 @@ Example:
 ```
   description: |-
     ## Overview
-    Data product Bale IV expositions corporates - EAD, calculs prudentiels et profils contreparties. Proprietaire : Mohamed Biane (CA-GIP).
+    Basel IV corporate exposures data product - EAD, prudential calculations and counterparty profiles. Owner: Mohamed Biane (CA-GIP).
 
     ## Business context
-    Donnees issues du lac Iceberg (`iceberg.bale_iv_raw`), partitionne par entite juridique (`ent_id`) et reference accord (`baapid`), sur 4 arretes trimestriels 2024.
+    Data from the Iceberg lake (`iceberg.bale_iv_raw`), partitioned by legal entity (`ent_id`) and agreement reference (`baapid`), over 4 quarterly 2024 closings.
 
     ## Business use cases
-    - Calcul du ratio de solvabilite et du RWA par entite juridique
-    - Analyse des contreparties en defaut avec leur notation interne BdF
-    - Suivi trimestriel de l'EAD et identification des expositions les plus critiques
+    - Solvency ratio and RWA calculation by legal entity
+    - Analysis of defaulted counterparties with their internal BdF rating
+    - Quarterly EAD monitoring and identification of the most critical exposures
 
     ## Sample questions for AIDA
-    - Quel est l'EAD total par type de risque sur le dernier arrete ?
-    - Quelles contreparties sont en defaut et quelle est leur note BdF ?
-    - Quelle est la PD moyenne par mode de calcul IRB ?
-    - Quels sont les 10 expositions les plus elevees en EAD euros ?
-    - Comment evolue l'EAD trimestriel par entite juridique ?
+    - What is the total EAD by risk type at the latest closing?
+    - Which counterparties are in default and what is their BdF rating?
+    - What is the average PD by IRB calculation mode?
+    - What are the 10 largest exposures by EAD in euros?
+    - How does quarterly EAD evolve by legal entity?
 ```
 
 ---
@@ -216,12 +216,13 @@ Example:
 - For cryptic column names (e.g. `amt_03`, `col_cd_1`, `flg_y`): infer meaning from domain context and append `(inferred — please verify)` inside the description string — never as a YAML comment
 - Never leave a description empty or as a placeholder like "TBD"
 - **Enum/categorical columns — always list possible values explicitly.** For any column whose values are a fixed set (type codes, status flags, rating scales, roles, modes), append the exhaustive value list to the description using this pattern:
-  `"<business meaning> - valeurs : val1 (meaning), val2 (meaning), val3"`
+  `"<business meaning> - values: val1 (meaning), val2 (meaning), val3"`
   This is the single highest-impact signal for AIDA — it allows the assistant to filter, compare, and explain values without guessing.
   Examples:
-  - `risk_type_cd`: `"Type de risque - valeurs : bilan (credits au bilan), hors_bilan_confirme (engagements irrevocables, CCF applique), repo, derive"`
-  - `calculation_mode`: `"Mode de calcul - valeurs : IRB_AVANCE (PD+LGD estimes en interne), IRB_FONDATION (LGD reglementaire 45%), STANDARD (ponderation forfaitaire)"`
-  - `cpy_role`: `"Role - valeurs : emprunteur (debiteur principal), garant (fournit une garantie eligible Bale IV)"`
+  - `risk_type_cd`: `"Risk type - values: bilan (on-balance-sheet credits), hors_bilan_confirme (irrevocable commitments, CCF applied), repo, derive"`
+  - `calculation_mode`: `"Calculation mode - values: IRB_AVANCE (PD+LGD estimated internally), IRB_FONDATION (regulatory LGD 45%), STANDARD (flat-rate weighting)"`
+  - `cpy_role`: `"Role - values: emprunteur (main debtor), garant (provides a Basel IV eligible guarantee)"`
+  Data values (e.g. `bilan`, `IRB_AVANCE`, `emprunteur`) are kept exactly as they appear in the data; only the explanatory text is in English.
 
 ### Sample query rules
 

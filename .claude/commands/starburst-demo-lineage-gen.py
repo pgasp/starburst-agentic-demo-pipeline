@@ -72,21 +72,21 @@ def role_card(title, accent_var, icon, grants_html):
     </div>"""
 
 sup_grants = f"""
-  <div class="grant">SELECT → toutes vues ({len(views)})</div>
-  <div class="grant">Aucun filtre (vision globale)</div>
-  <div class="grant text-dim">Assigné : starburst_service</div>"""
+  <div class="grant">SELECT → all views ({len(views)})</div>
+  <div class="grant">No filter (global view)</div>
+  <div class="grant text-dim">Assigned: starburst_service</div>"""
 
 usr_grants = f"""
-  <div class="grant">SELECT → toutes vues ({len(views)})</div>
-  {'<div class="grant rls-tag">RLS : ' + esc(rls_col) + ' = current_user</div>' if rls_col else ''}
-  {'<div class="grant cls-tag">CLS : ' + str(len(sensitive)) + ' colonne(s) masquée(s)</div>' if sensitive else ''}
-  <div class="grant text-dim">Assigné : {esc(spec.get("client","demo").lower().replace(" ","."))}@...</div>"""
+  <div class="grant">SELECT → all views ({len(views)})</div>
+  {'<div class="grant rls-tag">RLS: ' + esc(rls_col) + ' = current_user</div>' if rls_col else ''}
+  {'<div class="grant cls-tag">CLS: ' + str(len(sensitive)) + ' masked column(s)</div>' if sensitive else ''}
+  <div class="grant text-dim">Assigned: {esc(spec.get("client","demo").lower().replace(" ","."))}@...</div>"""
 
 ing_grants = f"""
-  <div class="grant">SELECT → toutes vues DP ({len(views)})</div>
+  <div class="grant">SELECT → all DP views ({len(views)})</div>
   <div class="grant">SELECT → iceberg (raw, allEntities)</div>
   <div class="grant">SELECT → data_products (allEntities)</div>
-  <div class="grant text-dim">Assigné : demo user</div>"""
+  <div class="grant text-dim">Assigned: demo user</div>"""
 
 role_cards_html = (
     role_card(f"{prefix}_superuser", "--teal", "●", sup_grants) +
@@ -190,14 +190,14 @@ body {{ background:var(--bg); color:var(--text-hi); font-family:var(--sans);
     <div class="dp-sub">{esc(catalog)}.{esc(schema)}</div>
 
     <div class="diagram-wrap" id="diag">
-      <div class="layer-label">Sources Iceberg (raw)</div>
+      <div class="layer-label">Iceberg sources (raw)</div>
       <div class="nodes-row" id="raw-row">
         {raw_nodes_html}
       </div>
       <div class="connector-row" id="conn-row">
         <svg id="arrows"></svg>
       </div>
-      <div class="layer-label">Vues Data Product</div>
+      <div class="layer-label">Data Product views</div>
       <div class="nodes-row" id="view-row">
         {view_nodes_html}
       </div>
@@ -208,21 +208,21 @@ body {{ background:var(--bg); color:var(--text-hi); font-family:var(--sans);
 
   <!-- RIGHT — BIAC roles -->
   <div class="col-right">
-    <div class="panel-title">Habilitations BIAC</div>
+    <div class="panel-title">BIAC permissions</div>
     {role_cards_html}
 
     <div class="stats-bar">
       <div class="stat">
         <div class="stat-val">{len(raw_tables)}</div>
-        <div class="stat-lbl">tables raw</div>
+        <div class="stat-lbl">raw tables</div>
       </div>
       <div class="stat">
         <div class="stat-val">{len(views)}</div>
-        <div class="stat-lbl">vues DP</div>
+        <div class="stat-lbl">DP views</div>
       </div>
       <div class="stat">
         <div class="stat-val">3</div>
-        <div class="stat-lbl">rôles BIAC</div>
+        <div class="stat-lbl">BIAC roles</div>
       </div>
     </div>
 
